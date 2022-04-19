@@ -6,7 +6,6 @@ import com.couchbase.client.core.deps.com.fasterxml.jackson.annotation.JsonCreat
 import com.couchbase.client.core.deps.com.fasterxml.jackson.annotation.JsonGetter;
 import com.couchbase.client.core.deps.com.fasterxml.jackson.annotation.JsonProperty;
 
-
 public class DocType {
 
     public static class Dimensions {
