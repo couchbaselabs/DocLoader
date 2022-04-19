@@ -17,7 +17,7 @@ import couchbase.test.dictionary.Dictionary;
 
 public class SimpleValue {
     public WorkLoadSettings ws;
-    private static int fixedSize = 454;
+    private static int fixedSize = 550;
     static final String upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     static final String lower = upper.toLowerCase(Locale.ROOT);
     static final String digits = "0123456789";
@@ -56,7 +56,7 @@ public class SimpleValue {
     public Person next(String key) {
         Random random_obj = new Random();
         random_obj.setSeed(key.hashCode());
-        Person person = new Person(this.get_name(random_obj), this.get_int(random_obj), this.get_animals(random_obj),
+        Person person = new Person(this.get_random_string(key, 100, random_obj), this.get_int(random_obj), this.get_animals(random_obj),
                 new Attributes(this.get_colour(random_obj), new Dimensions(this.get_int(random_obj), this.get_int(random_obj)),
                         Collections.singletonList(
                                 new Hobby(this.get_hobby(random_obj), this.get_hobby(random_obj),
