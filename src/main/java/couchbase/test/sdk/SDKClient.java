@@ -32,8 +32,8 @@ public class SDKClient {
     public Collection connection;
 
     public static ClusterEnvironment env = ClusterEnvironment.builder()
-          .timeoutConfig(TimeoutConfig.builder().kvTimeout(Duration.ofSeconds(10)))
-          .build();
+            .timeoutConfig(TimeoutConfig.builder().kvTimeout(Duration.ofSeconds(10)))
+            .build();
 
     public SDKClient(Server master, String bucket, String scope, String collection) {
         super();
@@ -41,6 +41,14 @@ public class SDKClient {
         this.bucket = bucket;
         this.scope = scope;
         this.collection = collection;
+
+        if(this.master.port.equals("11207"))
+            env = ClusterEnvironment.builder()
+            .timeoutConfig(TimeoutConfig.builder().kvTimeout(Duration.ofSeconds(10)))
+            .securityConfig(SecurityConfig.enableTls(true)
+            .trustManagerFactory(InsecureTrustManagerFactory.INSTANCE))
+            .ioConfig(IoConfig.enableDnsSrv(true))
+            .build();
     }
 
     public SDKClient() {
@@ -61,7 +69,7 @@ public class SDKClient {
             logger.info("Cluster connection is successful");
         }
         catch (AuthenticationFailureException e) {
-            logger.info(String.format("cannot login from user: %s/%s",master.rest_username, master.rest_password));
+            logger.fatal(String.format("cannot login from user: %s/%s",master.rest_username, master.rest_password));
         }
     }
 

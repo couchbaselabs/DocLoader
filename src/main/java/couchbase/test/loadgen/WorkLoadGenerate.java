@@ -9,6 +9,9 @@ import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+
 import com.couchbase.client.core.deps.com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 import com.couchbase.client.core.deps.com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.couchbase.client.core.deps.com.fasterxml.jackson.core.JsonProcessingException;
@@ -26,6 +29,7 @@ import com.couchbase.client.java.kv.UpsertOptions;
 import couchbase.test.docgen.DocType.Person;
 import couchbase.test.docgen.DocumentGenerator;
 import couchbase.test.sdk.DocOps;
+import couchbase.test.sdk.Loader;
 import couchbase.test.sdk.SDKClient;
 import couchbase.test.taskmanager.Task;
 
@@ -49,6 +53,7 @@ public class WorkLoadGenerate extends Task{
     public InsertOptions setOptions;
     public RemoveOptions removeOptions;
     public GetOptions getOptions;
+    static Logger logger = LogManager.getLogger(WorkLoadGenerate.class);
 
     public WorkLoadGenerate(String taskName, DocumentGenerator dg, SDKClient client, String durability) {
         super(taskName);
@@ -86,7 +91,7 @@ public class WorkLoadGenerate extends Task{
 
     @Override
     public void run() {
-        System.out.println("Starting " + this.taskName);
+        logger.info("Starting " + this.taskName);
         // Set timeout in WorkLoadSettings
         this.dg.ws.setTimeoutDuration(60, "seconds");
         // Set Durability in WorkLoadSettings
@@ -237,7 +242,7 @@ public class WorkLoadGenerate extends Task{
                     e.printStackTrace();
                 }
         }
-        System.out.println(this.taskName + " is completed!");
+        logger.info(this.taskName + " is completed!");
         this.result = true;
         if (retryTimes > 0 && failedMutations.size() > 0)
             for (Entry<String, List<Result>> optype: failedMutations.entrySet()) {
