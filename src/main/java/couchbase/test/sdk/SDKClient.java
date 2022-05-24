@@ -41,8 +41,9 @@ public class SDKClient {
         this.bucket = bucket;
         this.scope = scope;
         this.collection = collection;
+        System.out.println(this.master.memcached_port);
 
-        if(this.master.port.equals("11207"))
+        if(this.master.memcached_port.equals("11207"))
             env = ClusterEnvironment.builder()
             .timeoutConfig(TimeoutConfig.builder().kvTimeout(Duration.ofSeconds(10)))
             .securityConfig(SecurityConfig.enableTls(true)
