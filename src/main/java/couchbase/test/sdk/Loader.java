@@ -1,5 +1,6 @@
 package couchbase.test.sdk;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -13,13 +14,12 @@ import org.apache.commons.cli.ParseException;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
+import couchbase.test.docgen.DRConstants;
 import couchbase.test.docgen.DocRange;
 import couchbase.test.docgen.DocumentGenerator;
 import couchbase.test.docgen.WorkLoadSettings;
 import couchbase.test.loadgen.WorkLoadGenerate;
 import couchbase.test.taskmanager.TaskManager;
-
-import couchbase.test.docgen.DRConstants;
 
 public class Loader {
     static Logger logger = LogManager.getLogger(Loader.class);
@@ -27,6 +27,7 @@ public class Loader {
     static final String default_collection = "_default";
 
     public static void main(String[] args) {
+
         logger.info("#################### Starting Java Based Doc-Loader ####################");
 
         Options options = new Options();
@@ -212,11 +213,13 @@ public class Loader {
         } catch (ClassNotFoundException e1) {
             e1.printStackTrace();
         }
+        ArrayList<SDKClient> clients = new ArrayList<SDKClient>();
         for (int i = 0; i < ws.workers; i++) {
             try {
                 SDKClient client = new SDKClient(master, cmd.getOptionValue("bucket"), cmd.getOptionValue("scope", "_default"),
                 		cmd.getOptionValue("collection", "_default"));
                 client.initialiseSDK();
+                clients.add(client);
                 String th_name = "Loader" + i;
                 tm.submit(new WorkLoadGenerate(th_name, dg, client, cmd.getOptionValue("durability", "NONE"), 0, "seconds", true, 0, null));
                 TimeUnit.MILLISECONDS.sleep(500);
@@ -225,5 +228,8 @@ public class Loader {
             }
         }
         tm.getAllTaskResult();
+        for (SDKClient client : clients) {
+            client.disconnectCluster();
+		}
     }
 }
