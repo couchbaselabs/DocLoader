@@ -20,7 +20,7 @@ public class TaskManager {
     }
 
     public void shutdown() {
-        this.poolExecutor.shutdown();
+        this.poolExecutor.shutdownNow();
     }
 
     public void submit(Task task) {

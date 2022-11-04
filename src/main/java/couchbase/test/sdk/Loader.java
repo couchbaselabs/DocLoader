@@ -228,8 +228,11 @@ public class Loader {
             }
         }
         tm.getAllTaskResult();
+        tm.shutdown();
         for (SDKClient client : clients) {
             client.disconnectCluster();
+            client.shutdownEnv();
 		}
+//        System.exit(0);
     }
 }
