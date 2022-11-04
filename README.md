@@ -2,7 +2,7 @@
 
 Run:
 ```
-mvn compile exec:java -Dexec.mainClass="couchbase.test.sdk.Loader" -Dexec.args="-n <ip> -user <username> -pwd <password> -b <bucket-name> -p 11210 -create_s 0 -create_e 10000000 -cr 100 -ops 100000 -docSize 1024 -scope <> -collection <>"
+mvn compile exec:java -Dexec.cleanupDaemonThreads=false -Dexec.mainClass="couchbase.test.sdk.Loader" -Dexec.args="-n <ip> -user <username> -pwd <password> -b <bucket-name> -p 11210 -create_s 0 -create_e 10000000 -cr 100 -ops 100000 -docSize 1024 -scope <> -collection <>"
 ```
 
 ```
