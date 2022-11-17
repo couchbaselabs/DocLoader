@@ -133,6 +133,9 @@ public class Loader {
         Option keyType = new Option("keyType", "keyType", true, "Random/Sequential/Reverse");
         options.addOption(keyType);
 
+        Option keyPrefix = new Option("keyPrefix", "keyPrefix", true, "String");
+        options.addOption(keyPrefix);
+
         Option valueType = new Option("valueType", "valueType", true, "");
         options.addOption(valueType);
 
@@ -209,7 +212,7 @@ public class Loader {
         ws.dr = range;
         DocumentGenerator dg = null;
         try {
-            dg = new DocumentGenerator(ws, "RandomKey", null);
+            dg = new DocumentGenerator(ws, ws.keyPrefix, null);
         } catch (ClassNotFoundException e1) {
             e1.printStackTrace();
         }
