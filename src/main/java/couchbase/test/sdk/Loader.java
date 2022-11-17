@@ -212,7 +212,7 @@ public class Loader {
         ws.dr = range;
         DocumentGenerator dg = null;
         try {
-            dg = new DocumentGenerator(ws, ws.keyPrefix, null);
+            dg = new DocumentGenerator(ws, ws.keyType, null);
         } catch (ClassNotFoundException e1) {
             e1.printStackTrace();
         }
