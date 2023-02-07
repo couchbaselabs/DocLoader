@@ -180,7 +180,7 @@ public class Loader {
         }
 
         Server master = new Server(cmd.getOptionValue("node"), cmd.getOptionValue("port"), cmd.getOptionValue("rest_username"), cmd.getOptionValue("rest_password"), cmd.getOptionValue("port"));
-        TaskManager tm = new TaskManager(10);
+        TaskManager tm = new TaskManager(Integer.parseInt(cmd.getOptionValue("workers", "10")));
 
         WorkLoadSettings ws = new WorkLoadSettings(
                 cmd.getOptionValue("keyPrefix", "test_docs-"),
@@ -220,6 +220,7 @@ public class Loader {
         DocRange range = new DocRange(dr);
         ws.dr = range;
         DocumentGenerator dg = null;
+        System.out.println(Integer.parseInt(cmd.getOptionValue("maxTTL")));
         try {
             dg = new DocumentGenerator(ws, ws.keyType, null);
         } catch (ClassNotFoundException e1) {
