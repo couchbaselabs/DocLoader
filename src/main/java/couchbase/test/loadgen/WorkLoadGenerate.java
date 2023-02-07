@@ -49,7 +49,7 @@ public class WorkLoadGenerate extends Task{
     public String exp_unit;
     public String retryStrategy;
     public UpsertOptions upsertOptions;
-    public UpsertOptions expiryOptions;
+    public InsertOptions expiryOptions;
     public InsertOptions setOptions;
     public RemoveOptions removeOptions;
     public GetOptions getOptions;
@@ -102,7 +102,7 @@ public class WorkLoadGenerate extends Task{
                 .timeout(this.dg.ws.timeout)
                 .durability(this.dg.ws.durability)
                 .retryStrategy(this.dg.ws.retryStrategy);
-        expiryOptions = UpsertOptions.upsertOptions()
+        expiryOptions = InsertOptions.insertOptions()
                 .timeout(this.dg.ws.timeout)
                 .durability(this.dg.ws.durability)
                 .expiry(this.dg.ws.getDuration(this.exp, this.exp_unit))
@@ -162,7 +162,7 @@ public class WorkLoadGenerate extends Task{
                 List<Tuple2<String, Object>> docs = dg.nextExpiryBatch();
                 if (docs.size()>0) {
                     flag = true;
-                    List<Result> result = docops.bulkUpsert(this.sdk.connection, docs, expiryOptions);
+                    List<Result> result = docops.bulkInsert(this.sdk.connection, docs, expiryOptions);
                     ops += dg.ws.batchSize*dg.ws.expiry/100;
                     if(trackFailures && result.size()>0)
                         try {
