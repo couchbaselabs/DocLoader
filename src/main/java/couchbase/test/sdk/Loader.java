@@ -157,6 +157,15 @@ public class Loader {
         Option mutate = new Option("mutate", true, "mutate");
         options.addOption(mutate);
 
+        Option maxTTL = new Option("maxTTL", true, "Expiry Time");
+        options.addOption(maxTTL);
+
+        Option maxTTLUnit = new Option("maxTTLUnit", true, "Expiry Time unit");
+        options.addOption(maxTTLUnit);
+
+        Option retry = new Option("retry", true, "Retry failures n times");
+        options.addOption(retry);
+
         HelpFormatter formatter = new HelpFormatter();
         CommandLineParser parser = new DefaultParser();
         CommandLine cmd;
@@ -220,11 +229,17 @@ public class Loader {
         for (int i = 0; i < ws.workers; i++) {
             try {
                 SDKClient client = new SDKClient(master, cmd.getOptionValue("bucket"), cmd.getOptionValue("scope", "_default"),
-                		cmd.getOptionValue("collection", "_default"));
+                        cmd.getOptionValue("collection", "_default"));
                 client.initialiseSDK();
                 clients.add(client);
                 String th_name = "Loader" + i;
-                tm.submit(new WorkLoadGenerate(th_name, dg, client, cmd.getOptionValue("durability", "NONE"), 0, "seconds", true, 0, null));
+                boolean trackFailures = false;
+                if(Integer.parseInt(cmd.getOptionValue("retry", "0")) > 0)
+                    trackFailures = true;
+                tm.submit(new WorkLoadGenerate(
+                        th_name, dg, client, cmd.getOptionValue("durability", "NONE"),
+                        Integer.parseInt(cmd.getOptionValue("maxTTL", "0")), cmd.getOptionValue("maxTTLUnit", "seconds"),
+                        trackFailures, Integer.parseInt(cmd.getOptionValue("retry", "0")), null));
                 TimeUnit.MILLISECONDS.sleep(500);
             } catch (Exception e) {
                 e.printStackTrace();
@@ -235,7 +250,7 @@ public class Loader {
         for (SDKClient client : clients) {
             client.disconnectCluster();
             client.shutdownEnv();
-		}
+        }
 //        System.exit(0);
     }
 }
