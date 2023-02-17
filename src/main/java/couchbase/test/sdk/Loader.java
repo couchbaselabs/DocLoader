@@ -220,7 +220,6 @@ public class Loader {
         DocRange range = new DocRange(dr);
         ws.dr = range;
         DocumentGenerator dg = null;
-        System.out.println(Integer.parseInt(cmd.getOptionValue("maxTTL")));
         try {
             dg = new DocumentGenerator(ws, ws.keyType, null);
         } catch (ClassNotFoundException e1) {
