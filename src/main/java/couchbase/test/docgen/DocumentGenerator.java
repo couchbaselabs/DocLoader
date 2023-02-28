@@ -12,8 +12,9 @@ import couchbase.test.key.ReverseKey;
 import couchbase.test.key.SimpleKey;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
+import couchbase.test.val.Hotel;
 import couchbase.test.val.SimpleValue;
-
+import couchbase.test.val.anySizeValue;
 import couchbase.test.docgen.KVGenerator;
 
 abstract class KVGenerator{
@@ -39,7 +40,12 @@ abstract class KVGenerator{
         else
             this.keyInstance = SimpleKey.class;
 
-        this.valInstance = SimpleValue.class;
+        if(valClass.equals(anySizeValue.class.getSimpleName()))
+            this.valInstance = anySizeValue.class;
+        else if (valClass.equals(Hotel.class.getSimpleName()))
+        	this.valInstance = Hotel.class;
+        else
+            this.valInstance = SimpleValue.class;
         try {
             this.keys = keyInstance.getConstructor(WorkLoadSettings.class).newInstance(ws);
             this.vals = valInstance.getConstructor(WorkLoadSettings.class).newInstance(ws);

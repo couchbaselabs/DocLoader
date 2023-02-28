@@ -18,7 +18,6 @@ import com.couchbase.client.java.Collection;
 import com.couchbase.client.java.env.ClusterEnvironment;
 
 public class SDKClient {
-    
     static Logger logger = LogManager.getLogger(SDKClient.class);
 
     public Server master;
@@ -31,8 +30,16 @@ public class SDKClient {
 
     public Collection connection;
 
-    public static ClusterEnvironment env = ClusterEnvironment.builder()
+    public static ClusterEnvironment env1 = ClusterEnvironment.builder()
             .timeoutConfig(TimeoutConfig.builder().kvTimeout(Duration.ofSeconds(10)))
+            .securityConfig(SecurityConfig.enableTls(true)
+            .trustManagerFactory(InsecureTrustManagerFactory.INSTANCE))
+            .ioConfig(IoConfig.enableDnsSrv(true))
+            .build();
+
+    public static ClusterEnvironment env2 = ClusterEnvironment.builder()
+            .timeoutConfig(TimeoutConfig.builder().kvTimeout(Duration.ofSeconds(10)))
+            .ioConfig(IoConfig.enableDnsSrv(true))
             .build();
 
     public SDKClient(Server master, String bucket, String scope, String collection) {
@@ -41,15 +48,14 @@ public class SDKClient {
         this.bucket = bucket;
         this.scope = scope;
         this.collection = collection;
-        System.out.println(this.master.memcached_port);
+    }
 
-        if(this.master.memcached_port.equals("11207"))
-            env = ClusterEnvironment.builder()
-            .timeoutConfig(TimeoutConfig.builder().kvTimeout(Duration.ofSeconds(10)))
-            .securityConfig(SecurityConfig.enableTls(true)
-            .trustManagerFactory(InsecureTrustManagerFactory.INSTANCE))
-            .ioConfig(IoConfig.enableDnsSrv(true))
-            .build();
+    public SDKClient(Server master, String bucket) {
+        super();
+        this.master = master;
+        this.bucket = bucket;
+        this.scope = "_default";
+        this.collection = "_default";
     }
 
     public SDKClient() {
@@ -65,12 +71,16 @@ public class SDKClient {
 
     public void connectCluster(){
         try{
-            ClusterOptions cluster_options = ClusterOptions.clusterOptions(master.rest_username, master.rest_password).environment(env);
+            ClusterOptions cluster_options;
+            if(this.master.memcached_port.equals("11207"))
+                cluster_options = ClusterOptions.clusterOptions(master.rest_username, master.rest_password).environment(env1);
+            else
+                cluster_options = ClusterOptions.clusterOptions(master.rest_username, master.rest_password).environment(env2);
             this.cluster = Cluster.connect(master.ip, cluster_options);
             logger.info("Cluster connection is successful");
         }
         catch (AuthenticationFailureException e) {
-            logger.fatal(String.format("cannot login from user: %s/%s",master.rest_username, master.rest_password));
+            logger.info(String.format("cannot login from user: %s/%s",master.rest_username, master.rest_password));
         }
     }
 
@@ -88,7 +98,9 @@ public class SDKClient {
         this.bucketObj = this.cluster.bucket(bucket);
     }
 
-    private void selectCollection(String scope, String collection) {
+    public void selectCollection(String scope, String collection) {
         this.connection = this.bucketObj.scope(scope).collection(collection);
+        this.scope = scope;
+        this.collection = collection;
     }
 }

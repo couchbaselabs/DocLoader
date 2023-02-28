@@ -181,7 +181,6 @@ public class Loader {
 
         Server master = new Server(cmd.getOptionValue("node"), cmd.getOptionValue("port"), cmd.getOptionValue("rest_username"), cmd.getOptionValue("rest_password"), cmd.getOptionValue("port"));
         TaskManager tm = new TaskManager(Integer.parseInt(cmd.getOptionValue("workers", "10")));
-
         WorkLoadSettings ws = new WorkLoadSettings(
                 cmd.getOptionValue("keyPrefix", "test_docs-"),
                 Integer.parseInt(cmd.getOptionValue("keySize", "20")),
@@ -194,8 +193,8 @@ public class Loader {
                 Integer.parseInt(cmd.getOptionValue("workers", "10")),
                 Integer.parseInt(cmd.getOptionValue("ops", "10000")),
                 cmd.getOptionValue("loadType", null),
-                cmd.getOptionValue("keyType", null),
-                cmd.getOptionValue("valueType", null),
+                cmd.getOptionValue("keyType", "SimpleKey"),
+                cmd.getOptionValue("valueType", "SimpleValue"),
                 Boolean.parseBoolean(cmd.getOptionValue("validate", "false")),
                 Boolean.parseBoolean(cmd.getOptionValue("gtm", "false")),
                 Boolean.parseBoolean(cmd.getOptionValue("deleted", "false")),
@@ -221,7 +220,7 @@ public class Loader {
         ws.dr = range;
         DocumentGenerator dg = null;
         try {
-            dg = new DocumentGenerator(ws, ws.keyType, null);
+            dg = new DocumentGenerator(ws, ws.keyType, ws.valueType);
         } catch (ClassNotFoundException e1) {
             e1.printStackTrace();
         }

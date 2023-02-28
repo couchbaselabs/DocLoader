@@ -14,7 +14,6 @@ import com.couchbase.client.core.error.DurabilityImpossibleException;
 import com.couchbase.client.core.error.DurabilityLevelNotAvailableException;
 import com.couchbase.client.core.error.DurableWriteInProgressException;
 import com.couchbase.client.core.error.TimeoutException;
-import com.couchbase.client.core.msg.kv.DurabilityLevel;
 import com.couchbase.client.java.Collection;
 import com.couchbase.client.java.ReactiveCollection;
 import com.couchbase.client.java.kv.GetOptions;
@@ -27,10 +26,8 @@ import com.couchbase.client.java.kv.TouchOptions;
 import com.couchbase.client.java.kv.UpsertOptions;
 
 import couchbase.test.docgen.DocType.Person;
-import couchbase.test.sdk.Result;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.util.annotation.Nullable;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
 
@@ -39,7 +36,7 @@ public class DocOps {
     public List<Result> bulkInsert(Collection collection, List<Tuple2<String, Object>> documents, InsertOptions insertOptions) {
         ReactiveCollection reactiveCollection = collection.reactive();
 
-        List<Result> out = new ArrayList();
+        List<Result> out = new ArrayList<Result>();
 
         Flux.fromIterable(documents)
                 .flatMap(documentToInsert -> {
@@ -59,7 +56,7 @@ public class DocOps {
     public List<Result> bulkUpsert(Collection collection, List<Tuple2<String, Object>> documents,
             UpsertOptions upsertOptions) {
         ReactiveCollection reactiveCollection = collection.reactive();
-        List<Result> out = new ArrayList();
+        List<Result> out = new ArrayList<Result>();
 
         Flux.fromIterable(documents)
                 .flatMap(documentToInsert -> {
@@ -82,7 +79,6 @@ public class DocOps {
                 .flatMap(new Function<Tuple2<String, Object>, Publisher<Tuple2<String, Object>>>() {
                     public Publisher<Tuple2<String, Object>> apply(Tuple2<String, Object> documentToInsert) {
                         final String id = documentToInsert.getT1();
-                        final Tuple2<String, Object> returnValue;
                         return reactiveCollection.get(id, getOptions)
                                 .map(new Function<GetResult, Tuple2<String, Object>>() {
                                     public Tuple2<String, Object> apply(GetResult result) {
@@ -101,7 +97,7 @@ public class DocOps {
     public List<Result> bulkDelete(Collection collection, List<String> keys, RemoveOptions removeOptions) {
         ReactiveCollection reactiveCollection = collection.reactive();
 
-        List<Result> out = new ArrayList();
+        List<Result> out = new ArrayList<Result>();
 
         Flux.fromIterable(keys)
                 .flatMap(key -> {
