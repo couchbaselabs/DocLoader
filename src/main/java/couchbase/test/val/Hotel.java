@@ -49,7 +49,7 @@ public class Hotel {
             country.add(faker.address().country());
             
             ArrayList<String> temp = new ArrayList<String>();
-            int numLikes = this.random.nextInt(0, 10);
+            int numLikes = this.random.nextInt(10);
     		for (int n = 0; n <= numLikes; n++) {
     			temp.add(faker.name().fullName());
     		}
