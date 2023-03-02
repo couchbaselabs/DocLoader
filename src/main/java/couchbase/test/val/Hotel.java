@@ -60,7 +60,7 @@ public class Hotel {
 	}
 
 	public void setReviewsArray() {
-		int numReviews = this.random.nextInt(0, 10);
+		int numReviews = this.random.nextInt(10);
 		LocalDateTime now = LocalDateTime.now();
 		ArrayList<JsonObject> temp = new ArrayList<JsonObject>();
 		for (int n = 0; n <= numReviews; n++) {
