@@ -248,8 +248,10 @@ public class Loader {
         tm.shutdown();
         for (SDKClient client : clients) {
             client.disconnectCluster();
-            client.shutdownEnv();
         }
-//        System.exit(0);
+        for (SDKClient client : clients) {
+            client.shutdownEnv();
+            break;
+        }
     }
 }
