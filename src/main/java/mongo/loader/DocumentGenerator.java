@@ -1,4 +1,4 @@
-package couchbase.test.docgen;
+package mongo.loader;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -6,20 +6,20 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.bson.Document;
+
+import com.mongodb.client.model.InsertOneModel;
+
+import couchbase.test.docgen.WorkLoadSettings;
 import couchbase.test.key.CircularKey;
 import couchbase.test.key.RandomKey;
 import couchbase.test.key.RandomSizeKey;
 import couchbase.test.key.ReverseKey;
 import couchbase.test.key.SimpleKey;
-import couchbase.test.val.Hotel;
-import couchbase.test.val.NimbusM;
-import couchbase.test.val.NimbusP;
-import couchbase.test.val.SimpleValue;
-import couchbase.test.val.anySizeValue;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
 
-abstract class KVGenerator{
+abstract class DocGenerator{
     public WorkLoadSettings ws;
     String padding = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
             + "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
@@ -30,7 +30,7 @@ abstract class KVGenerator{
     protected Method keyMethod;
     protected Method valMethod;
 
-    public KVGenerator(WorkLoadSettings ws, String keyClass, String valClass) throws ClassNotFoundException {
+    public DocGenerator(WorkLoadSettings ws, String keyClass, String valClass) throws ClassNotFoundException {
         super();
         this.ws = ws;
         if(keyClass.equals(RandomKey.class.getSimpleName()))
@@ -44,16 +44,7 @@ abstract class KVGenerator{
         else
             this.keyInstance = SimpleKey.class;
 
-        if(valClass.equals(anySizeValue.class.getSimpleName()))
-            this.valInstance = anySizeValue.class;
-        else if (valClass.equals(NimbusP.class.getSimpleName()))
-            this.valInstance = NimbusP.class;
-        else if (valClass.equals(NimbusM.class.getSimpleName()))
-            this.valInstance = NimbusM.class;
-        else if (valClass.equals(Hotel.class.getSimpleName()))
-            this.valInstance = Hotel.class;
-        else
-            this.valInstance = SimpleValue.class;
+        this.valInstance = Hotel.class;
 
         try {
             this.keys = keyInstance.getConstructor(WorkLoadSettings.class).newInstance(ws);
@@ -105,7 +96,7 @@ abstract class KVGenerator{
         if (this.ws.dr.expiryItr.get() < this.ws.dr.expiry_e)
             return true;
         if (this.keyInstance.getSimpleName() == CircularKey.class.getSimpleName()) {
-            this.resetExpiry();
+            this.restExpiry();
             return true;
         }
         return false;
@@ -123,7 +114,7 @@ abstract class KVGenerator{
         this.ws.dr.readItr =  new AtomicLong(this.ws.dr.read_s);
     }
 
-    void resetExpiry() {
+    void restExpiry() {
         this.ws.dr.expiryItr.set(this.ws.dr.expiry_s);
     }
 
@@ -132,7 +123,7 @@ abstract class KVGenerator{
     }
 }
 
-public class DocumentGenerator extends KVGenerator{
+public class DocumentGenerator extends DocGenerator{
     boolean targetvB;
 
     public DocumentGenerator(WorkLoadSettings ws, String keyClass, String valClass) throws ClassNotFoundException {
@@ -195,11 +186,13 @@ public class DocumentGenerator extends KVGenerator{
         return Tuples.of(k, v);
     }
 
-    public List<Tuple2<String, Object>> nextInsertBatch() {
-        List<Tuple2<String, Object>> docs = new ArrayList<Tuple2<String,Object>>();
+    public List<InsertOneModel<Document>> nextInsertBatch() {
+        List<InsertOneModel<Document>> docs = new ArrayList<>();
         int count = 0;
-        while (this.has_next_create() && count<ws.batchSize*ws.creates/100) {
-            docs.add(this.next());
+        int req_count = ws.batchSize*ws.creates/100;
+        while (this.has_next_create() && count<req_count) {
+            Document doc = (Document) this.next().getT2();
+            docs.add(new InsertOneModel<>(doc));
             count += 1;
         }
         return docs;
