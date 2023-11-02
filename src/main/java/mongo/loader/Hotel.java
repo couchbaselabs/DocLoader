@@ -78,6 +78,7 @@ public class Hotel {
 		Document jsonObject = new Document();
 		this.random.setSeed(key.hashCode());
 		int index = this.random.nextInt(4096);
+		jsonObject.put("_id", key);
 		jsonObject.put("address", this.addresses.get(index));
 		jsonObject.put("city", this.addresses.get(index));
 		jsonObject.put("country", this.country.get(index));
