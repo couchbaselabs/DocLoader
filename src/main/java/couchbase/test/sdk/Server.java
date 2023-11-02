@@ -3,8 +3,6 @@ package couchbase.test.sdk;
 public class Server {
     public String ip;
     public String port;
-    public String username = "root";
-    public String password = "couchbase";
     public String rest_username = "Administrator";
     public String rest_password = "password";
     public String memcached_port = "11210";
