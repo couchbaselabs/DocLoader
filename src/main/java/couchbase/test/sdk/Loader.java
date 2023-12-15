@@ -147,6 +147,9 @@ public class Loader {
 
         Option deleted = new Option("deleted", "deleted", true, "To verify deleted docs");
         options.addOption(deleted);
+        
+        Option vector = new Option("vector", "vector", true, "To add vector embeddings in the document");
+        options.addOption(vector);
 
         Option transaction_load = new Option("transaction_patterns", true, "Transaction load pattern");
         options.addOption(transaction_load);
@@ -198,7 +201,8 @@ public class Loader {
                 Boolean.parseBoolean(cmd.getOptionValue("validate", "false")),
                 Boolean.parseBoolean(cmd.getOptionValue("gtm", "false")),
                 Boolean.parseBoolean(cmd.getOptionValue("deleted", "false")),
-                Integer.parseInt(cmd.getOptionValue("mutate", "0"))
+                Integer.parseInt(cmd.getOptionValue("mutate", "0")),
+                Boolean.parseBoolean(cmd.getOptionValue("vector", "false"))
                 );
         HashMap<String, Number> dr = new HashMap<String, Number>();
         dr.put(DRConstants.create_s, Long.parseLong(cmd.getOptionValue(DRConstants.create_s, "0")));
