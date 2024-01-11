@@ -16,26 +16,22 @@ import com.couchbase.client.core.deps.com.fasterxml.jackson.annotation.JsonAutoD
 import com.couchbase.client.core.deps.com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.couchbase.client.core.deps.com.fasterxml.jackson.core.JsonProcessingException;
 import com.couchbase.client.core.deps.com.fasterxml.jackson.databind.ObjectMapper;
-import com.couchbase.client.core.error.AmbiguousTimeoutException;
 import com.couchbase.client.core.error.DocumentExistsException;
 import com.couchbase.client.core.error.DocumentNotFoundException;
 import com.couchbase.client.core.error.ServerOutOfMemoryException;
 import com.couchbase.client.core.error.TimeoutException;
-import com.couchbase.client.core.retry.RetryStrategy;
 import com.couchbase.client.java.kv.GetOptions;
 import com.couchbase.client.java.kv.InsertOptions;
 import com.couchbase.client.java.kv.RemoveOptions;
 import com.couchbase.client.java.kv.UpsertOptions;
-import couchbase.test.docgen.DocType.Person;
+
 import couchbase.test.docgen.DocumentGenerator;
 import couchbase.test.sdk.DocOps;
-import couchbase.test.sdk.Loader;
+import couchbase.test.sdk.Result;
 import couchbase.test.sdk.SDKClient;
 import couchbase.test.taskmanager.Task;
-
-import couchbase.test.sdk.Result;
+import elasticsearch.EsClient;
 import reactor.util.function.Tuple2;
-import reactor.util.function.Tuples;
 
 public class WorkLoadGenerate extends Task{
     DocumentGenerator dg;
@@ -53,6 +49,7 @@ public class WorkLoadGenerate extends Task{
     public InsertOptions setOptions;
     public RemoveOptions removeOptions;
     public GetOptions getOptions;
+    public EsClient esClient = null;
     static Logger logger = LogManager.getLogger(WorkLoadGenerate.class);
 
     public WorkLoadGenerate(String taskName, DocumentGenerator dg, SDKClient client, String durability) {
@@ -81,6 +78,21 @@ public class WorkLoadGenerate extends Task{
         this.dg = dg;
         this.docops = new DocOps();
         this.sdk = client;
+        this.durability = durability;
+        this.trackFailures = trackFailures;
+        this.retryTimes = retryTimes;
+        this.exp = exp;
+        this.exp_unit = exp_unit;
+        this.retryStrategy = retryStrategy;
+    }
+
+    public WorkLoadGenerate(String taskName, DocumentGenerator dg, SDKClient client, EsClient esClient,
+            String durability, int exp, String exp_unit, boolean trackFailures, int retryTimes, String retryStrategy) {
+        super(taskName);
+        this.dg = dg;
+        this.docops = new DocOps();
+        this.sdk = client;
+        this.esClient = esClient;
         this.durability = durability;
         this.trackFailures = trackFailures;
         this.retryTimes = retryTimes;
@@ -125,13 +137,16 @@ public class WorkLoadGenerate extends Task{
             Instant trackFailureTime_end = Instant.now();
             Duration timeElapsed = Duration.between(trackFailureTime_start, trackFailureTime_end);
             if(timeElapsed.toMinutes() > 5) {
-            	for (Entry<String, List<Result>> optype: failedMutations.entrySet())
-            		System.out.println("Failed mutations count so far: " + optype.getKey() + " == " + optype.getValue().size());
+                for (Entry<String, List<Result>> optype: failedMutations.entrySet())
+                    System.out.println("Failed mutations count so far: " + optype.getKey() + " == " + optype.getValue().size());
                 trackFailureTime_start = Instant.now();
             }
             Instant start = Instant.now();
             if(dg.ws.creates > 0) {
                 List<Tuple2<String, Object>> docs = dg.nextInsertBatch();
+                if(this.dg.ws.elastic) {
+                    esClient.insertDocs(this.sdk.collection.replace("_", ""), docs);
+                }
                 if (docs.size()>0) {
                     flag = true;
                     List<Result> result = docops.bulkInsert(this.sdk.connection, docs, setOptions);
@@ -149,6 +164,9 @@ public class WorkLoadGenerate extends Task{
                 if (docs.size()>0) {
                     flag = true;
                     List<Result> result = docops.bulkUpsert(this.sdk.connection, docs, upsertOptions);
+                    if(this.dg.ws.elastic) {
+                        esClient.insertDocs(this.sdk.collection.replace("_", ""), docs);
+                    }
                     ops += dg.ws.batchSize*dg.ws.updates/100;
                     if(trackFailures && result.size()>0)
                         try {
@@ -177,6 +195,9 @@ public class WorkLoadGenerate extends Task{
                 if (docs.size()>0) {
                     flag = true;
                     List<Result> result = docops.bulkDelete(this.sdk.connection, docs, removeOptions);
+                    if(this.dg.ws.elastic) {
+                        esClient.deleteDocs(this.sdk.collection.replace("_", ""), docs);
+                    }
                     ops += dg.ws.batchSize*dg.ws.deletes/100;
                     if(trackFailures && result.size()>0)
                         try {

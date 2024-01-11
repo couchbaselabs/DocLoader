@@ -1,6 +1,6 @@
 package couchbase.test.sdk;
 
-import java.util.ArrayList;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -20,6 +20,7 @@ import couchbase.test.docgen.DocumentGenerator;
 import couchbase.test.docgen.WorkLoadSettings;
 import couchbase.test.loadgen.WorkLoadGenerate;
 import couchbase.test.taskmanager.TaskManager;
+import elasticsearch.EsClient;
 
 public class Loader {
     static Logger logger = LogManager.getLogger(Loader.class);
@@ -147,9 +148,21 @@ public class Loader {
 
         Option deleted = new Option("deleted", "deleted", true, "To verify deleted docs");
         options.addOption(deleted);
+
+        Option elastic = new Option("elastic", "elastic", true, "Flag to insert data in ElasticSearch cluster");
+        options.addOption(elastic);
+
+        Option esServer = new Option("esServer", "elastic", true, "ElasticSearch cluster");
+        options.addOption(esServer);
+
+        Option esUser = new Option("esUser", "elastic", true, "ElasticSearch user");
+        options.addOption(esUser);
+
+        Option esPwd = new Option("esPwd", "elastic", true, "ElasticSearch password");
+        options.addOption(esPwd);
         
-        Option vector = new Option("vector", "vector", true, "To add vector embeddings in the document");
-        options.addOption(vector);
+        Option esAPIKey = new Option("esAPIKey", "elastic", true, "ElasticSearch APIKey");
+        options.addOption(esAPIKey);
 
         Option transaction_load = new Option("transaction_patterns", true, "Transaction load pattern");
         options.addOption(transaction_load);
@@ -182,43 +195,39 @@ public class Loader {
             return;
         }
 
-        Server master = new Server(cmd.getOptionValue("node"), cmd.getOptionValue("port"), cmd.getOptionValue("rest_username"), cmd.getOptionValue("rest_password"), cmd.getOptionValue("port"));
+        Server master = new Server(cmd.getOptionValue("node"), cmd.getOptionValue("port"),
+                cmd.getOptionValue("rest_username"), cmd.getOptionValue("rest_password"), cmd.getOptionValue("port"));
         TaskManager tm = new TaskManager(Integer.parseInt(cmd.getOptionValue("workers", "10")));
-        WorkLoadSettings ws = new WorkLoadSettings(
-                cmd.getOptionValue("keyPrefix", "test_docs-"),
+        WorkLoadSettings ws = new WorkLoadSettings(cmd.getOptionValue("keyPrefix", "test_docs-"),
                 Integer.parseInt(cmd.getOptionValue("keySize", "20")),
                 Integer.parseInt(cmd.getOptionValue("docSize", "256")),
-                Integer.parseInt(cmd.getOptionValue("cr", "100")),
-                Integer.parseInt(cmd.getOptionValue("rd", "0")),
-                Integer.parseInt(cmd.getOptionValue("up", "0")),
-                Integer.parseInt(cmd.getOptionValue("dl", "0")),
-                Integer.parseInt(cmd.getOptionValue("ex", "0")),
-                Integer.parseInt(cmd.getOptionValue("workers", "10")),
-                Integer.parseInt(cmd.getOptionValue("ops", "10000")),
-                cmd.getOptionValue("loadType", null),
-                cmd.getOptionValue("keyType", "SimpleKey"),
-                cmd.getOptionValue("valueType", "SimpleValue"),
+                Integer.parseInt(cmd.getOptionValue("cr", "0")), Integer.parseInt(cmd.getOptionValue("rd", "0")),
+                Integer.parseInt(cmd.getOptionValue("up", "0")), Integer.parseInt(cmd.getOptionValue("dl", "0")),
+                Integer.parseInt(cmd.getOptionValue("ex", "0")), Integer.parseInt(cmd.getOptionValue("workers", "10")),
+                Integer.parseInt(cmd.getOptionValue("ops", "10000")), cmd.getOptionValue("loadType", null),
+                cmd.getOptionValue("keyType", "SimpleKey"), cmd.getOptionValue("valueType", "SimpleValue"),
                 Boolean.parseBoolean(cmd.getOptionValue("validate", "false")),
                 Boolean.parseBoolean(cmd.getOptionValue("gtm", "false")),
                 Boolean.parseBoolean(cmd.getOptionValue("deleted", "false")),
                 Integer.parseInt(cmd.getOptionValue("mutate", "0")),
-                Boolean.parseBoolean(cmd.getOptionValue("vector", "false"))
-                );
+                Boolean.parseBoolean(cmd.getOptionValue("elastic", "false")),
+                cmd.getOptionValue("model", "sentence-transformers/all-MiniLM-L6-v2"));
+
         HashMap<String, Number> dr = new HashMap<String, Number>();
         dr.put(DRConstants.create_s, Long.parseLong(cmd.getOptionValue(DRConstants.create_s, "0")));
-        dr.put(DRConstants.create_e ,Long.parseLong(cmd.getOptionValue(DRConstants.create_e, "0")));
-        dr.put(DRConstants.read_s ,Long.parseLong(cmd.getOptionValue(DRConstants.read_s, "0")));
-        dr.put(DRConstants.read_e ,Long.parseLong(cmd.getOptionValue(DRConstants.read_e, "0")));
-        dr.put(DRConstants.update_s ,Long.parseLong(cmd.getOptionValue(DRConstants.update_s, "0")));
-        dr.put(DRConstants.update_e ,Long.parseLong(cmd.getOptionValue(DRConstants.update_e, "0")));
-        dr.put(DRConstants.delete_s ,Long.parseLong(cmd.getOptionValue(DRConstants.delete_s, "0")));
-        dr.put(DRConstants.delete_e ,Long.parseLong(cmd.getOptionValue(DRConstants.delete_e, "0")));
-        dr.put(DRConstants.touch_s ,Long.parseLong(cmd.getOptionValue(DRConstants.touch_s, "0")));
-        dr.put(DRConstants.touch_e ,Long.parseLong(cmd.getOptionValue(DRConstants.touch_e, "0")));
-        dr.put(DRConstants.replace_s ,Long.parseLong(cmd.getOptionValue(DRConstants.replace_s, "0")));
-        dr.put(DRConstants.replace_e ,Long.parseLong(cmd.getOptionValue(DRConstants.replace_e, "0")));
-        dr.put(DRConstants.expiry_s ,Long.parseLong(cmd.getOptionValue(DRConstants.expiry_s, "0")));
-        dr.put(DRConstants.expiry_e ,Long.parseLong(cmd.getOptionValue(DRConstants.expiry_e, "0")));
+        dr.put(DRConstants.create_e, Long.parseLong(cmd.getOptionValue(DRConstants.create_e, "0")));
+        dr.put(DRConstants.read_s, Long.parseLong(cmd.getOptionValue(DRConstants.read_s, "0")));
+        dr.put(DRConstants.read_e, Long.parseLong(cmd.getOptionValue(DRConstants.read_e, "0")));
+        dr.put(DRConstants.update_s, Long.parseLong(cmd.getOptionValue(DRConstants.update_s, "0")));
+        dr.put(DRConstants.update_e, Long.parseLong(cmd.getOptionValue(DRConstants.update_e, "0")));
+        dr.put(DRConstants.delete_s, Long.parseLong(cmd.getOptionValue(DRConstants.delete_s, "0")));
+        dr.put(DRConstants.delete_e, Long.parseLong(cmd.getOptionValue(DRConstants.delete_e, "0")));
+        dr.put(DRConstants.touch_s, Long.parseLong(cmd.getOptionValue(DRConstants.touch_s, "0")));
+        dr.put(DRConstants.touch_e, Long.parseLong(cmd.getOptionValue(DRConstants.touch_e, "0")));
+        dr.put(DRConstants.replace_s, Long.parseLong(cmd.getOptionValue(DRConstants.replace_s, "0")));
+        dr.put(DRConstants.replace_e, Long.parseLong(cmd.getOptionValue(DRConstants.replace_e, "0")));
+        dr.put(DRConstants.expiry_s, Long.parseLong(cmd.getOptionValue(DRConstants.expiry_s, "0")));
+        dr.put(DRConstants.expiry_e, Long.parseLong(cmd.getOptionValue(DRConstants.expiry_e, "0")));
 
         DocRange range = new DocRange(dr);
         ws.dr = range;
@@ -228,21 +237,31 @@ public class Loader {
         } catch (ClassNotFoundException e1) {
             e1.printStackTrace();
         }
-        ArrayList<SDKClient> clients = new ArrayList<SDKClient>();
+        SDKClient client = new SDKClient(master, cmd.getOptionValue("bucket"), cmd.getOptionValue("scope", "_default"),
+                cmd.getOptionValue("collection", "_default"));
+        EsClient esClient = null;
+        if (ws.elastic) {
+            if (cmd.getOptionValue(esAPIKey.getOpt()) != null)
+                esClient = new EsClient(esServer.getValue("http://localhost:9200"), cmd.getOptionValue(esAPIKey.getOpt()));
+            esClient.initializeSDK();
+            esClient.deleteESIndex(cmd.getOptionValue("collection", "_default").replace("_", ""));
+            esClient.createESIndex(cmd.getOptionValue("collection", "_default").replace("_", ""), null);
+        }
+        try {
+            client.initialiseSDK();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         for (int i = 0; i < ws.workers; i++) {
             try {
-                SDKClient client = new SDKClient(master, cmd.getOptionValue("bucket"), cmd.getOptionValue("scope", "_default"),
-                        cmd.getOptionValue("collection", "_default"));
-                client.initialiseSDK();
-                clients.add(client);
                 String th_name = "Loader" + i;
                 boolean trackFailures = false;
-                if(Integer.parseInt(cmd.getOptionValue("retry", "0")) > 0)
+                if (Integer.parseInt(cmd.getOptionValue("retry", "0")) > 0)
                     trackFailures = true;
-                tm.submit(new WorkLoadGenerate(
-                        th_name, dg, client, cmd.getOptionValue("durability", "NONE"),
-                        Integer.parseInt(cmd.getOptionValue("maxTTL", "0")), cmd.getOptionValue("maxTTLUnit", "seconds"),
-                        trackFailures, Integer.parseInt(cmd.getOptionValue("retry", "0")), null));
+                tm.submit(new WorkLoadGenerate(th_name, dg, client, esClient, cmd.getOptionValue("durability", "NONE"),
+                        Integer.parseInt(cmd.getOptionValue("maxTTL", "0")),
+                        cmd.getOptionValue("maxTTLUnit", "seconds"), trackFailures,
+                        Integer.parseInt(cmd.getOptionValue("retry", "0")), null));
                 TimeUnit.MILLISECONDS.sleep(500);
             } catch (Exception e) {
                 e.printStackTrace();
@@ -250,12 +269,15 @@ public class Loader {
         }
         tm.getAllTaskResult();
         tm.shutdown();
-        for (SDKClient client : clients) {
-            client.disconnectCluster();
-        }
-        for (SDKClient client : clients) {
-            client.shutdownEnv();
-            break;
+        client.disconnectCluster();
+        client.shutdownEnv();
+        
+        if (ws.elastic) {
+            try {
+                esClient.restClient.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 }
