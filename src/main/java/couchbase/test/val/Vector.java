@@ -17,7 +17,7 @@ import ai.djl.translate.TranslateException;
 import couchbase.test.docgen.WorkLoadSettings;
 
 public class Vector {
-	String[] colors = { "Abbey", "Absolute Zero", "Acadia", "Acapulco", "Acid Green", "Aero", "Aero Blue", "Affair",
+	public String[] colors = { "Abbey", "Absolute Zero", "Acadia", "Acapulco", "Acid Green", "Aero", "Aero Blue", "Affair",
 			"African Violet", "Air Force Blue", "Air Superiority Blue", "Akaroa", "Alabama Crimson", "Alabaster",
 			"Albescent White", "Algae Green", "Alice Blue", "Alien Armpit", "Alizarin Crimson", "Alloy Orange",
 			"Allports", "Almond", "Almond Frost", "Alpine", "Alto", "Aluminium", "Amaranth", "Amaranth Pink",
@@ -336,7 +336,7 @@ public class Vector {
 			"Yellow Sea", "Your Pink", "Yukon Gold", "Yuma", "Zaffre", "Zambezi", "Zanah", "Zest", "Zeus", "Ziggurat",
 			"Zinnwaldite", "Zinnwaldite Brown", "Zircon", "Zombie", "Zomp", "Zorba", "Zuccini", "Zumthor" };
 
-	String[] fashionBrands = { "Roadster", "LOCOMOTIVE", "Zivame", "Mast & Harbour", "HIGHLANDER", "Mayra", "HERE&NOW",
+	public String[] fashionBrands = { "Roadster", "LOCOMOTIVE", "Zivame", "Mast & Harbour", "HIGHLANDER", "Mayra", "HERE&NOW",
 			"HRX by Hrithik Roshan", "Anubhutee", "Athena", "Vishudh", "Sangria", "Tokyo Talkies", "DressBerry",
 			"Anouk", "Enamor", "all about you", "KASSUALLY", "RARE", "Zastraa", "WISSTLER", "Cottinfab", "QUIERO",
 			"ELEVANTO", "WROGN", "SASSAFRAS", "her by invictus", "StyleStone", "Moda Rapido", "Harpa",
@@ -622,7 +622,7 @@ public class Vector {
 			"EVAH LONDON", "IndusDiva Infusions", "Arrow Woman", "Guniaa", "Little Musketeer", "Encrypt", "FCK-3",
 			"GLAMAZE", "RED CHERI", "radka", "the kaatn trail", "pink woman", "AUDSTRO", "Doodlage", "CHOZI",
 	"STATUS MANTRA" };
-	String[] clothingType = { "Men jeans", "Men track-pants", "Men shirts", "Women shapewear", "Women tshirts",
+	public String[] clothingType = { "Men jeans", "Men track-pants", "Men shirts", "Women shapewear", "Women tshirts",
 			"Women tops", "Men trousers", "Men tights", "Men tshirts", "Women kurta-sets", "Women jumpsuit",
 			"Women kurtas", "Women trousers", "Women bra", "Women shirts", "Women shorts", "Women dresses",
 			"Women bath-robe", "Women track-pants", "Women tights", "Women jackets", "Men socks", "Women jeans",
@@ -667,14 +667,14 @@ public class Vector {
 			"Men Formal Trousers", "Men Shorts", "Men Track Pants & Joggers", "Men Innerwear & Sleepwear",
 			"Men Briefs & Trunks", "Men Boxers", "Men Vests", "Men Sleepwear & Loungewear", "Men Thermals" };
 
-	String[] fabricType = { "Cotton", "Elastane", "Linen", "Modal", "Nylon", "Polyester", "Satin", "Silk",
+	public String[] fabricType = { "Cotton", "Elastane", "Linen", "Modal", "Nylon", "Polyester", "Satin", "Silk",
 			"Viscose Rayon", "Acrylic", "Corduroy", "Cotton Canvas", "Cotton Linen", "Crepe", "Cupro", "Denim",
 			"Elastane", "Georgette", "Hemp", "Khadi", "Leather", "Linen Blend", "Lyocell", "Modal", "Organic Cotton",
 			"Poly Silk", "Polycotton", "Silk", "Smart Fit", "Suede", "Synthetic", "" };
 
-	String[] Occasion = { "Casual", "Formal", "Party", "Semiformal", "" };
+	public String[] Occasion = { "Casual", "Formal", "Party", "Semiformal", "" };
 
-	String[] menAccessories = { "Men Plus Size", "Men Footwear", "Men Casual Shoes", "Men Sports Shoes",
+	public String[] menAccessories = { "Men Plus Size", "Men Footwear", "Men Casual Shoes", "Men Sports Shoes",
 			"Men Formal Shoes", "Men Sneakers", "Men Sandals & Floaters", "Men Flip Flops", "Men Socks",
 			"Men Personal Care & Grooming", "Men Sunglasses & Frames", "Men Watches", "Men Sports & Active Wear",
 			"Men Sports Shoes", "Men Sports Sandals", "Men Active T-Shirts", "Men Track Pants & Shorts",
@@ -685,11 +685,15 @@ public class Vector {
 			"Men Mufflers, Scarves & Gloves", "Men Phone Cases", "Men Rings & Wristwear", "Men Helmets" };
 
 	private Random random;
-	private Predictor<String, float[]> predictor = null;
+	public Predictor<String, float[]> predictor = null;
 
 	public Vector(WorkLoadSettings ws) {
 		super();
 		this.setEmbeddingsModel(ws.model);
+	}
+	
+	public Vector() {
+		super();
 	}
 
     public void setEmbeddingsModel(String DJL_MODEL) {

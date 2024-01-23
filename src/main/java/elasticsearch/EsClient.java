@@ -1,7 +1,16 @@
 package elasticsearch;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
@@ -13,13 +22,19 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import com.fasterxml.jackson.databind.SerializationFeature;
+
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.ElasticsearchException;
 import co.elastic.clients.elasticsearch.core.BulkRequest.Builder;
 import co.elastic.clients.elasticsearch.core.BulkResponse;
+import co.elastic.clients.elasticsearch.core.SearchRequest;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
+import couchbase.test.val.Vector.Product;
 import jakarta.json.JsonObject;
 import reactor.util.function.Tuple2;
 
@@ -80,7 +95,7 @@ public class EsClient {
 	}
 
 	public Response createESIndex(String indexName, JsonObject indexMapping) {
-		//create an Index with indexName"
+		//create an Index with indexName
 		Request createIndex = new Request("PUT", "/" + indexName);
 		try {
 			restClient.performRequest(createIndex);
@@ -147,7 +162,7 @@ public class EsClient {
 
 		return esResult;
 	}
-	
+
 	public BulkResponse deleteDocs(String indexName, List<String> docs) {
 		BulkResponse esResult = null;
 		Builder br = new Builder();
@@ -165,5 +180,40 @@ public class EsClient {
 			e.printStackTrace();
 		}
 		return esResult;
+	}
+
+	public String performKNNSearch(String indexName,
+			String vectorField, float[] fs, int k) throws Exception {
+		String endpoint = "/" + indexName + "/_search";
+
+		Map<String, Object> knnQuery = new HashMap<String, Object>();
+		knnQuery.put("field", vectorField);
+		knnQuery.put("k", k);
+		knnQuery.put("num_candidates", k);
+		knnQuery.put("query_vector", fs);
+
+		Map<String, Object> requestPayload = new HashMap<>();
+		requestPayload.put("knn", knnQuery);
+//		Map<String, Object> excludes = new HashMap<String, Object>();
+//		excludes.put("exclude", new String[] {"embedding"});
+		requestPayload.put("_source", new ArrayList<String>(Arrays.asList("productID", "productDescription")));
+
+		//Serialize the request payload as JSON
+		ObjectMapper objectMapper = new ObjectMapper();
+		objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
+
+		ObjectWriter objectWriter = objectMapper.writer();
+		String payloadJSON = objectWriter.writeValueAsString(requestPayload);
+
+		Request request = new Request("POST", endpoint);
+		request.setJsonEntity(payloadJSON);
+
+		Response result = restClient.performRequest(request);
+		InputStream inputStream = result.getEntity().getContent();
+		String text = new BufferedReader(
+			      new InputStreamReader(inputStream, StandardCharsets.UTF_8))
+			        .lines()
+			        .collect(Collectors.joining("\n"));
+		return text;
 	}
 }

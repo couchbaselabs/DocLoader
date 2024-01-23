@@ -2,9 +2,12 @@ package couchbase.test.docgen;
 
 import java.util.List;
 
-import com.couchbase.client.core.deps.com.fasterxml.jackson.annotation.JsonCreator;
-import com.couchbase.client.core.deps.com.fasterxml.jackson.annotation.JsonGetter;
-import com.couchbase.client.core.deps.com.fasterxml.jackson.annotation.JsonProperty;
+//import com.couchbase.client.core.deps.com.fasterxml.jackson.annotation.JsonCreator;
+//import com.couchbase.client.core.deps.com.fasterxml.jackson.annotation.JsonGetter;
+//import com.couchbase.client.core.deps.com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonGetter;
 
 public class DocType {
 
