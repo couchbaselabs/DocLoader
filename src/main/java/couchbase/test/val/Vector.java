@@ -685,57 +685,94 @@ public class Vector {
 			"Men Mufflers, Scarves & Gloves", "Men Phone Cases", "Men Rings & Wristwear", "Men Helmets" };
 
 	private Random random;
+
 	public Predictor<String, float[]> predictor = null;
+	static final String digits = "0123456789";
+	static final char[] key_chars = (digits).toCharArray();
+	String randomString;
+	int randomStringLength;
+	boolean mockVector = false;
 
 	public Vector(WorkLoadSettings ws) {
 		super();
-		this.setEmbeddingsModel(ws.model);
+		if(!this.mockVector)
+			this.setEmbeddingsModel(ws.model);
+		char[] str_buf = new char[1024*1024];
+		Random random_obj = new Random();
+		random_obj.setSeed(ws.keyPrefix.hashCode());
+
+		for (int index=0; index<1024*1024; index++) {
+			str_buf[index] = key_chars[random_obj.nextInt(key_chars.length)];
+		}
+
+		this.randomString = String.valueOf(str_buf);
+		String temp = this.randomString;
+		this.randomStringLength = randomString.length();
+		for (int i = 0; i < ws.docSize/this.randomStringLength+2; i++) {
+			this.randomString = this.randomString.concat(temp);
+		}
+		this.randomStringLength = this.randomString.length();
 	}
-	
+
 	public Vector() {
 		super();
 	}
 
-    public void setEmbeddingsModel(String DJL_MODEL) {
-        String DJL_PATH = "djl://ai.djl.huggingface.pytorch/" + DJL_MODEL;
-        Criteria<String, float[]> criteria =
-                Criteria.builder()
-                .setTypes(String.class, float[].class)
-                .optModelUrls(DJL_PATH)
-                .optEngine("PyTorch")
-                .optTranslatorFactory(new TextEmbeddingTranslatorFactory())
-                .optProgress(new ProgressBar())
-                .build();
-        ZooModel<String, float[]> model = null;
-        try {
-            model = criteria.loadModel();
-        } catch (ModelNotFoundException | MalformedModelException | IOException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
-        this.predictor = model.newPredictor();
-    }
+	public void setEmbeddingsModel(String DJL_MODEL) {
+		String DJL_PATH = "djl://ai.djl.huggingface.pytorch/" + DJL_MODEL;
+		Criteria<String, float[]> criteria =
+				Criteria.builder()
+				.setTypes(String.class, float[].class)
+				.optModelUrls(DJL_PATH)
+				.optEngine("PyTorch")
+				.optTranslatorFactory(new TextEmbeddingTranslatorFactory())
+				.optProgress(new ProgressBar())
+				.build();
+		ZooModel<String, float[]> model = null;
+		try {
+			model = criteria.loadModel();
+		} catch (ModelNotFoundException | MalformedModelException | IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		this.predictor = model.newPredictor();
+	}
+
+	private String get_random_string(int length, Random random_obj) {
+		if(length>0) {
+			int _slice = random_obj.nextInt(this.randomStringLength - length);
+			return this.randomString.substring(_slice, length+_slice);
+		}
+		return "";
+	}
 
 	public Product next(String key) {
 		this.random = new Random();
-		try {
-			String productDescription = "";
-			productDescription += this.colors[this.random.nextInt(this.colors.length)] + " color ";
-			productDescription += this.fabricType[this.random.nextInt(this.fabricType.length)] + " fabric ";
-			productDescription += this.Occasion[this.random.nextInt(this.Occasion.length)] + " wear ";
-			productDescription += this.clothingType[this.random.nextInt(this.clothingType.length)];
-			productDescription += " by " + this.fashionBrands[this.random.nextInt(this.fashionBrands.length)];
-			double[] embedding = new double[384];
-			int counter = 0;
-			float[] vector = this.predictor.predict(productDescription);
-			for (Float i : vector) {
-				embedding[counter++] = i.floatValue();
+		String productDescription = "";
+		float[] embedding = new float[384];
+		productDescription += this.colors[this.random.nextInt(this.colors.length)] + " color ";
+		productDescription += this.fabricType[this.random.nextInt(this.fabricType.length)] + " fabric ";
+		productDescription += this.Occasion[this.random.nextInt(this.Occasion.length)] + " wear ";
+		productDescription += this.clothingType[this.random.nextInt(this.clothingType.length)];
+		productDescription += " by " + this.fashionBrands[this.random.nextInt(this.fashionBrands.length)];
+		float[] vector = null;
+		if(this.mockVector) {
+			for(int i=0; i<384; i++) {
+				embedding[i] = Float.valueOf("0." + this.get_random_string(10, this.random));
 			}
-			return new Product(key, productDescription, embedding);
-		} catch (TranslateException e) {
-			e.printStackTrace();
+		} else {
+			int counter = 0;
+			try {
+				vector = this.predictor.predict(productDescription);
+			} catch (TranslateException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+//			for (Float i : vector) {
+//				embedding[counter++] = i.floatValue();
+//			}
 		}
-		return null;
+		return new Product(key, productDescription, vector);
 	}
 
 	public class Product {
@@ -743,7 +780,7 @@ public class Vector {
 		@JsonProperty
 		private String productID;
 		@JsonProperty
-		private double[] embedding;
+		private float[] embedding;
 		@JsonProperty
 		private String productDescription;
 
@@ -752,7 +789,7 @@ public class Vector {
 		Product(
 				@JsonProperty("productID") String productID,
 				@JsonProperty("productDescription") String productDescription,
-				@JsonProperty("embedding") double[] embedding2){
+				@JsonProperty("embedding") float[] embedding2){
 			this.productID = productID;
 			this.productDescription = productDescription;
 			this.embedding = embedding2;
@@ -774,11 +811,11 @@ public class Vector {
 			this.productDescription = productDescription;
 		}
 
-		public double[] getEmbedding() {
+		public float[] getEmbedding() {
 			return this.embedding;
 		}
 
-		public void setEmbedding(double[] embedding) {
+		public void setEmbedding(float[] embedding) {
 			this.embedding = embedding;
 		}
 	}
