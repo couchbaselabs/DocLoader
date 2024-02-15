@@ -164,6 +164,15 @@ public class Loader {
         Option esAPIKey = new Option("esAPIKey", "elastic", true, "ElasticSearch APIKey");
         options.addOption(esAPIKey);
 
+        Option model = new Option("model", "model", true, "Vector Model");
+        options.addOption(model);
+
+        Option mockVector = new Option("mockVector", "mockVector", true, "Mock Vector embedding");
+        options.addOption(mockVector);
+
+        Option dim = new Option("dim", "dim", true, "Vector Dimensions");
+        options.addOption(dim);
+
         Option transaction_load = new Option("transaction_patterns", true, "Transaction load pattern");
         options.addOption(transaction_load);
 
@@ -211,7 +220,9 @@ public class Loader {
                 Boolean.parseBoolean(cmd.getOptionValue("deleted", "false")),
                 Integer.parseInt(cmd.getOptionValue("mutate", "0")),
                 Boolean.parseBoolean(cmd.getOptionValue("elastic", "false")),
-                cmd.getOptionValue("model", "sentence-transformers/all-MiniLM-L6-v2"));
+                cmd.getOptionValue("model", "sentence-transformers/paraphrase-MiniLM-L3-v2"),
+                Boolean.parseBoolean(cmd.getOptionValue("mockVector", "false")),
+                Integer.parseInt(cmd.getOptionValue("dim", "0")));
 
         HashMap<String, Number> dr = new HashMap<String, Number>();
         dr.put(DRConstants.create_s, Long.parseLong(cmd.getOptionValue(DRConstants.create_s, "0")));

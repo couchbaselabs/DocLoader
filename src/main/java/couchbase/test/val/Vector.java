@@ -1,6 +1,7 @@
 package couchbase.test.val;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Random;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
@@ -672,7 +673,7 @@ public class Vector {
 			"Elastane", "Georgette", "Hemp", "Khadi", "Leather", "Linen Blend", "Lyocell", "Modal", "Organic Cotton",
 			"Poly Silk", "Polycotton", "Silk", "Smart Fit", "Suede", "Synthetic", "" };
 
-	public String[] Occasion = { "Casual", "Formal", "Party", "Semiformal", "" };
+	public String[] Occasion = { "Casual", "Formal", "Party", "Semiformal" };
 
 	public String[] menAccessories = { "Men Plus Size", "Men Footwear", "Men Casual Shoes", "Men Sports Shoes",
 			"Men Formal Shoes", "Men Sneakers", "Men Sandals & Floaters", "Men Flip Flops", "Men Socks",
@@ -690,28 +691,26 @@ public class Vector {
 	static final String digits = "0123456789";
 	static final char[] key_chars = (digits).toCharArray();
 	String randomString;
-	int randomStringLength;
+	int flt_buf_length;
 	boolean mockVector = false;
+	float[] flt_buf;
+	private WorkLoadSettings ws;
 
 	public Vector(WorkLoadSettings ws) {
 		super();
-		if(!this.mockVector)
+		this.ws = ws;
+		this.random = new Random();
+		if(!ws.mockVector) {
 			this.setEmbeddingsModel(ws.model);
-		char[] str_buf = new char[1024*1024];
-		Random random_obj = new Random();
-		random_obj.setSeed(ws.keyPrefix.hashCode());
+			return;
+		}
+		this.flt_buf = new float[1024*1024];
+		this.random.setSeed(ws.keyPrefix.hashCode());
 
 		for (int index=0; index<1024*1024; index++) {
-			str_buf[index] = key_chars[random_obj.nextInt(key_chars.length)];
+			this.flt_buf[index] = this.random.nextFloat();
 		}
-
-		this.randomString = String.valueOf(str_buf);
-		String temp = this.randomString;
-		this.randomStringLength = randomString.length();
-		for (int i = 0; i < ws.docSize/this.randomStringLength+2; i++) {
-			this.randomString = this.randomString.concat(temp);
-		}
-		this.randomStringLength = this.randomString.length();
+		this.flt_buf_length = this.flt_buf.length;
 	}
 
 	public Vector() {
@@ -738,39 +737,29 @@ public class Vector {
 		this.predictor = model.newPredictor();
 	}
 
-	private String get_random_string(int length, Random random_obj) {
-		if(length>0) {
-			int _slice = random_obj.nextInt(this.randomStringLength - length);
-			return this.randomString.substring(_slice, length+_slice);
-		}
-		return "";
+	private float[] get_float_array(int length, Random random_obj) {
+		int _slice = random_obj.nextInt(this.flt_buf_length - length);
+		return Arrays.copyOfRange(this.flt_buf, _slice, _slice+length);
 	}
 
 	public Product next(String key) {
-		this.random = new Random();
+		float[] vector = null;
 		String productDescription = "";
-		float[] embedding = new float[384];
 		productDescription += this.colors[this.random.nextInt(this.colors.length)] + " color ";
 		productDescription += this.fabricType[this.random.nextInt(this.fabricType.length)] + " fabric ";
 		productDescription += this.Occasion[this.random.nextInt(this.Occasion.length)] + " wear ";
 		productDescription += this.clothingType[this.random.nextInt(this.clothingType.length)];
 		productDescription += " by " + this.fashionBrands[this.random.nextInt(this.fashionBrands.length)];
-		float[] vector = null;
-		if(this.mockVector) {
-			for(int i=0; i<384; i++) {
-				embedding[i] = Float.valueOf("0." + this.get_random_string(10, this.random));
-			}
+
+		if(this.ws.mockVector) {
+			vector = this.get_float_array(this.ws.dim, this.random);
 		} else {
-			int counter = 0;
 			try {
 				vector = this.predictor.predict(productDescription);
 			} catch (TranslateException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-//			for (Float i : vector) {
-//				embedding[counter++] = i.floatValue();
-//			}
 		}
 		return new Product(key, productDescription, vector);
 	}

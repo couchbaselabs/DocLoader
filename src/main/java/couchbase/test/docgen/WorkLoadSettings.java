@@ -43,6 +43,8 @@ public class WorkLoadSettings extends WorkLoadBase {
     public Boolean rollback_transaction;
     public boolean elastic;
     public String model;
+	public boolean mockVector;
+	public int dim;
 
     /**** Constructors ****/
     public WorkLoadSettings(String keyPrefix,
@@ -76,7 +78,7 @@ public class WorkLoadSettings extends WorkLoadBase {
             int workers, int ops, String loadType,
             String keyType, String valueType,
             boolean validate, boolean gtm, boolean deleted, int mutated,
-            boolean elastic, String model) {
+            boolean elastic, String model, boolean mockVector, int dim) {
         super();
         this.keyPrefix = keyPrefix;
         this.keySize = keySize;
@@ -98,6 +100,8 @@ public class WorkLoadSettings extends WorkLoadBase {
         this.keyType = keyType;
         this.elastic = elastic;
         this.model = model;
+        this.mockVector = mockVector;
+        this.dim = dim;
     };
 
     public WorkLoadSettings(
