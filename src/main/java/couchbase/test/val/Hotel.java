@@ -25,9 +25,11 @@ public class Hotel {
     private ArrayList<String> names = new ArrayList<String>();
     private ArrayList<String> url = new ArrayList<String>();
     private ArrayList<ArrayList<JsonObject>> reviews = new ArrayList<ArrayList<JsonObject>>();
+    private int mutate = 0;
 
     public Hotel(WorkLoadSettings ws) {
         super();
+        this.mutate = ws.mutated;
         this.random = new Random();
         this.random.setSeed(ws.keyPrefix.hashCode());
         faker = new Faker(random);
@@ -77,6 +79,11 @@ public class Hotel {
         JsonObject jsonObject = JsonObject.create();
         this.random.setSeed(key.hashCode());
         int index = this.random.nextInt(4096);
+        ArrayList<JsonObject> review = this.reviews.get(index);
+        if(this.mutate != 0) {
+            this.random.setSeed((key+Integer.toString(this.mutate)).hashCode());
+            index = this.random.nextInt(4096);
+        }
         jsonObject.put("address", this.addresses.get(index));
         jsonObject.put("city", this.city.get(index));
         jsonObject.put("country", this.country.get(index));
@@ -88,9 +95,10 @@ public class Hotel {
         jsonObject.put("price", 500 + this.random.nextInt(1500));
         jsonObject.put("avg_rating", this.random.nextFloat()*5);
         jsonObject.put("public_likes", this.likes.get(index));
-        jsonObject.put("reviews", this.reviews.get(index));
+        jsonObject.put("reviews", review);
         jsonObject.put("type", this.htypes.get(index % htypes.size()));
         jsonObject.put("url", this.url.get(index));
+        jsonObject.put("mutate", this.mutate);
         return jsonObject;
     }
 
