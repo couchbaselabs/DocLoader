@@ -47,3 +47,25 @@ usage: Supported Options
  -valueType,--valueType <arg>
  -w,--workers <arg>             Workers
  ```
+
+# DocLoader as Rest Service
+
+```java
+mvn spring-boot:run
+```
+API Specifications :-
+
+[Data Load API](src/main/java/couchbase/test/rest/DocLoader-load-api.yaml)
+
+[Shutdown Service API](src/main/java/couchbase/test/rest/DocLoader-shutdown-api.yaml)
+
+
+To run through jar, compile first
+```java
+mvn clean compile package
+```
+
+Command to run on specific port
+```java
+java -jar ./target/magmadocloader/magmadocloader.jar --server.port=8080
+```
