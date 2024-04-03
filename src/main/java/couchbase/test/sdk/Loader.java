@@ -160,7 +160,7 @@ public class Loader {
 
         Option esPwd = new Option("esPwd", "elastic", true, "ElasticSearch password");
         options.addOption(esPwd);
-        
+
         Option esAPIKey = new Option("esAPIKey", "elastic", true, "ElasticSearch APIKey");
         options.addOption(esAPIKey);
 
@@ -181,6 +181,12 @@ public class Loader {
 
         Option mutate = new Option("mutate", true, "mutate");
         options.addOption(mutate);
+
+        Option mutate_field = new Option("mutate_field", true, "Fields to be mutated");
+        options.addOption(mutate_field);
+
+        Option mutation_timeout = new Option("mutation_timeout", true, "");
+        options.addOption(mutation_timeout);
 
         Option maxTTL = new Option("maxTTL", true, "Expiry Time");
         options.addOption(maxTTL);
@@ -222,7 +228,9 @@ public class Loader {
                 Boolean.parseBoolean(cmd.getOptionValue("elastic", "false")),
                 cmd.getOptionValue("model", "sentence-transformers/paraphrase-MiniLM-L3-v2"),
                 Boolean.parseBoolean(cmd.getOptionValue("mockVector", "false")),
-                Integer.parseInt(cmd.getOptionValue("dim", "0")));
+                Integer.parseInt(cmd.getOptionValue("dim", "0")),
+                cmd.getOptionValue("mutate_field",""),
+                Integer.parseInt(cmd.getOptionValue("mutation_timeout","0")));
 
         HashMap<String, Number> dr = new HashMap<String, Number>();
         dr.put(DRConstants.create_s, Long.parseLong(cmd.getOptionValue(DRConstants.create_s, "0")));
@@ -282,7 +290,6 @@ public class Loader {
         tm.shutdown();
         client.disconnectCluster();
         client.shutdownEnv();
-        
         if (ws.elastic) {
             try {
                 esClient.restClient.close();
