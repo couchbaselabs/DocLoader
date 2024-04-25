@@ -5,7 +5,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
-
+import java.util.concurrent.TimeUnit;
 import couchbase.test.key.CircularKey;
 import couchbase.test.key.RandomKey;
 import couchbase.test.key.RandomSizeKey;
@@ -30,6 +30,7 @@ abstract class KVGenerator{
     private Class<?> valInstance;
     protected Method keyMethod;
     protected Method valMethod;
+    long startTime = TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis());
 
     public KVGenerator(WorkLoadSettings ws, String keyClass, String valClass) throws ClassNotFoundException {
         super();
@@ -97,8 +98,9 @@ abstract class KVGenerator{
     public boolean has_next_update() {
         if (this.ws.dr.updateItr.get() < this.ws.dr.update_e)
             return true;
-        if (this.keyInstance.getSimpleName() == CircularKey.class.getSimpleName()) {
+        if (this.keyInstance.getSimpleName() == CircularKey.class.getSimpleName() || TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis())-startTime<ws.mutation_timeout) {
             this.resetUpdate();
+            this.ws.mutated+=1;
             return true;
         }
         return false;

@@ -34,6 +34,9 @@ public class WorkLoadSettings extends WorkLoadBase {
     public boolean validate;
     public int mutated;
 
+    public String mutate_field;
+    public int mutation_timeout;
+
     public DocRange dr;
     public DocumentGenerator doc_gen;
 
@@ -43,15 +46,15 @@ public class WorkLoadSettings extends WorkLoadBase {
     public Boolean rollback_transaction;
     public boolean elastic;
     public String model;
-	public boolean mockVector;
-	public int dim;
+    public boolean mockVector;
+    public int dim;
 
     /**** Constructors ****/
     public WorkLoadSettings(String keyPrefix,
-            int keySize, int docSize, int c, int r, int u, int d, int e,
-            int workers, int ops, String loadType,
-            String keyType, String valueType,
-            boolean validate, boolean gtm, boolean deleted, int mutated) {
+                            int keySize, int docSize, int c, int r, int u, int d, int e,
+                            int workers, int ops, String loadType,
+                            String keyType, String valueType,
+                            boolean validate, boolean gtm, boolean deleted, int mutated) {
         super();
         this.keyPrefix = keyPrefix;
         this.keySize = keySize;
@@ -72,13 +75,13 @@ public class WorkLoadSettings extends WorkLoadBase {
         this.valueType = valueType;
         this.keyType = keyType;
     };
-    
+
     public WorkLoadSettings(String keyPrefix,
-            int keySize, int docSize, int c, int r, int u, int d, int e,
-            int workers, int ops, String loadType,
-            String keyType, String valueType,
-            boolean validate, boolean gtm, boolean deleted, int mutated,
-            boolean elastic, String model, boolean mockVector, int dim) {
+                            int keySize, int docSize, int c, int r, int u, int d, int e,
+                            int workers, int ops, String loadType,
+                            String keyType, String valueType,
+                            boolean validate, boolean gtm, boolean deleted, int mutated,
+                            boolean elastic, String model, boolean mockVector, int dim, String mutate_field, Integer mutation_timeout) {
         super();
         this.keyPrefix = keyPrefix;
         this.keySize = keySize;
@@ -90,7 +93,6 @@ public class WorkLoadSettings extends WorkLoadBase {
         this.expiry = e;
         this.workers = workers;
         this.ops = ops;
-
         this.batchSize = this.ops/this.workers;
         this.gtm = gtm;
         this.expectDeleted = deleted;
@@ -102,6 +104,8 @@ public class WorkLoadSettings extends WorkLoadBase {
         this.model = model;
         this.mockVector = mockVector;
         this.dim = dim;
+        this.mutate_field = mutate_field;
+        this.mutation_timeout = mutation_timeout;
     };
 
     public WorkLoadSettings(
@@ -125,8 +129,8 @@ public class WorkLoadSettings extends WorkLoadBase {
         this.dr = new DocRange(hm);
 
         // Populates this.transaction_pattern
-        this.create_transaction_load_pattern_per_worker(
-            key_range.getT1(), key_range.getT2(), transaction_pattern);
+            this.create_transaction_load_pattern_per_worker(
+                 key_range.getT1(), key_range.getT2(), transaction_pattern);
 
         // Create DocumentGenerator object
         this.doc_gen = new DocumentGenerator(this, this.keyType, this.valueType);
