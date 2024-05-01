@@ -173,6 +173,9 @@ public class Loader {
         Option dim = new Option("dim", "dim", true, "Vector Dimensions");
         options.addOption(dim);
 
+        Option base64 = new Option("base64", "base64", true, "base64 encoding for Vector embedding");
+        options.addOption(base64);
+
         Option transaction_load = new Option("transaction_patterns", true, "Transaction load pattern");
         options.addOption(transaction_load);
 
@@ -229,6 +232,7 @@ public class Loader {
                 cmd.getOptionValue("model", "sentence-transformers/paraphrase-MiniLM-L3-v2"),
                 Boolean.parseBoolean(cmd.getOptionValue("mockVector", "false")),
                 Integer.parseInt(cmd.getOptionValue("dim", "0")),
+                Boolean.parseBoolean(cmd.getOptionValue("base64", "false")),
                 cmd.getOptionValue("mutate_field",""),
                 Integer.parseInt(cmd.getOptionValue("mutation_timeout","0")));
 

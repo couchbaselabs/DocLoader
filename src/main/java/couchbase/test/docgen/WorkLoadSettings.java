@@ -5,12 +5,6 @@ import java.util.HashMap;
 import java.util.List;
 import reactor.util.function.Tuple2;
 
-import com.couchbase.client.core.msg.kv.DurabilityLevel;
-import couchbase.test.docgen.DRConstants;
-
-import com.couchbase.client.java.kv.PersistTo;
-import com.couchbase.client.java.kv.ReplicateTo;
-
 public class WorkLoadSettings extends WorkLoadBase {
     public String keyPrefix = "test_docs-";
     public int workers = 10;
@@ -46,8 +40,9 @@ public class WorkLoadSettings extends WorkLoadBase {
     public Boolean rollback_transaction;
     public boolean elastic;
     public String model;
-    public boolean mockVector;
-    public int dim;
+	public boolean mockVector;
+	public int dim;
+	public boolean base64;
 
     /**** Constructors ****/
     public WorkLoadSettings(String keyPrefix,
@@ -77,11 +72,12 @@ public class WorkLoadSettings extends WorkLoadBase {
     };
 
     public WorkLoadSettings(String keyPrefix,
-                            int keySize, int docSize, int c, int r, int u, int d, int e,
-                            int workers, int ops, String loadType,
-                            String keyType, String valueType,
-                            boolean validate, boolean gtm, boolean deleted, int mutated,
-                            boolean elastic, String model, boolean mockVector, int dim, String mutate_field, Integer mutation_timeout) {
+    		int keySize, int docSize, int c, int r, int u, int d, int e,
+    		int workers, int ops, String loadType,
+    		String keyType, String valueType,
+    		boolean validate, boolean gtm, boolean deleted, int mutated,
+    		boolean elastic, String model, boolean mockVector, int dim, boolean base64,
+    		String mutate_field, Integer mutation_timeout) {
         super();
         this.keyPrefix = keyPrefix;
         this.keySize = keySize;
@@ -106,6 +102,7 @@ public class WorkLoadSettings extends WorkLoadBase {
         this.dim = dim;
         this.mutate_field = mutate_field;
         this.mutation_timeout = mutation_timeout;
+        this.base64 = base64;
     };
 
     public WorkLoadSettings(

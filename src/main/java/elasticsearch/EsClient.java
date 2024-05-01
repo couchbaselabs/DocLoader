@@ -34,7 +34,7 @@ import co.elastic.clients.elasticsearch.core.SearchRequest;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
-import couchbase.test.val.Vector.Product;
+import couchbase.test.val.Vector.Product1;
 import jakarta.json.JsonObject;
 import reactor.util.function.Tuple2;
 
