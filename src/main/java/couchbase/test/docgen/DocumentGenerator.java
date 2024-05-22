@@ -14,6 +14,7 @@ import couchbase.test.key.SimpleKey;
 import couchbase.test.val.Hotel;
 import couchbase.test.val.NimbusM;
 import couchbase.test.val.NimbusP;
+import couchbase.test.val.Product;
 import couchbase.test.val.SimpleValue;
 import couchbase.test.val.Vector;
 import couchbase.test.val.anySizeValue;
@@ -56,6 +57,8 @@ abstract class KVGenerator{
             this.valInstance = Hotel.class;
         else if (valClass.equals(Vector.class.getSimpleName()))
             this.valInstance = Vector.class;
+        else if (valClass.equals(Product.class.getSimpleName()))
+            this.valInstance = Product.class;
         else
             this.valInstance = SimpleValue.class;
 

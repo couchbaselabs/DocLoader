@@ -2,10 +2,11 @@ package couchbase.test.val;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Random;
 
-import com.amazonaws.util.Base64;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -743,20 +744,22 @@ public class Vector {
 
     public static byte[] floatsToBytes(float[] floats) {
         byte bytes[] = new byte[Float.BYTES * floats.length];
-        ByteBuffer.wrap(bytes).asFloatBuffer().put(floats);
+        ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().put(floats);
+        
         return bytes;
     }
 
-    public static String convertToBase64Bytes(float[] audio) {
-        return Base64.encodeAsString(floatsToBytes(audio));
+    public static String convertToBase64Bytes(float[] floats) {
+        return Base64.getEncoder().encodeToString(floatsToBytes(floats));
       }
 
     private float[] get_float_array(int length, Random random_obj) {
         int _slice = random_obj.nextInt(this.flt_buf_length - length);
+        
         return Arrays.copyOfRange(this.flt_buf, _slice, _slice+length);
     }
-
     public Object next(String key) {
+    	this.random.setSeed(key.hashCode());
         float[] vector = null;
         String productDescription = "";
         productDescription += this.colors[this.random.nextInt(this.colors.length)] + " color ";
