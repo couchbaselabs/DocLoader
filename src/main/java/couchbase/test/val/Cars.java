@@ -16,12 +16,16 @@ import couchbase.test.docgen.WorkLoadSettings;
 
 import java.awt.*;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Random;
 import java.util.List;
 
 public class Cars {
 
+    private final WorkLoadSettings ws;
     Faker faker;
     private Random random;
     public String[] carColors = {"darker blue", "darker green", "green again", "darker purple", "darker pink",
@@ -440,6 +444,7 @@ public class Cars {
     }
     public Cars(WorkLoadSettings ws) {
         super();
+        this.ws = ws;
         this.random = new Random();
         this.random.setSeed(ws.keyPrefix.hashCode());
         faker = new Faker();
@@ -493,7 +498,15 @@ public class Cars {
         }
         this.predictor = model.newPredictor();
     }
+    public static byte[] floatsToBytes(float[] floats) {
+        byte bytes[] = new byte[Float.BYTES * floats.length];
+        ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().put(floats);
 
+        return bytes;
+    }
+    public static String convertToBase64Bytes(float[] floats) {
+        return Base64.getEncoder().encodeToString(floatsToBytes(floats));
+    }
     public ArrayList<JsonObject> getCarEvaluation(){
         int numReviews = this.random.nextInt(10);
         ArrayList<JsonObject> temp = new ArrayList<>();
@@ -526,14 +539,20 @@ public class Cars {
             } catch (TranslateException e) {
                 e.printStackTrace();
             }
-            JsonArray featureVectorJson;
-            try {
-                featureVectorJson = convertFloatVectorToJSON(featureVector);
-            } catch (JSONException e) {
-                throw new RuntimeException(e);
-            }
 
-            evaluation.put("featureVector", featureVectorJson);
+            if (this.ws.base64) {
+                String featureVectorVal = null;
+                featureVectorVal = convertToBase64Bytes(featureVector);
+                evaluation.put("featureVector", featureVectorVal);
+            } else{
+                JsonArray featureVectorVal;
+                try {
+                    featureVectorVal = convertFloatVectorToJSON(featureVector);
+                } catch (JSONException e) {
+                    throw new RuntimeException(e);
+                }
+                evaluation.put("featureVector", featureVectorVal);
+            }
             temp.add(evaluation);
         }
         return temp;
@@ -559,16 +578,26 @@ public class Cars {
         String description = String.format(carDescription, manufacturer, transmission, year, color, category, rating);
         ArrayList<JsonObject> evaluation = getCarEvaluation();
         float[] descriptionVector = new float[0];
+        if (this.ws.base64) {
+
+        }
         try {
             descriptionVector = this.predictor.predict(description);
         } catch (TranslateException e) {
             e.printStackTrace();
         }
-        JsonArray descriptionVectorJson;
-        try {
-            descriptionVectorJson = convertFloatVectorToJSON(descriptionVector);
-        } catch (JSONException e) {
-            throw new RuntimeException(e);
+        if (this.ws.base64){
+            String descriptionVectorJson = null;
+            descriptionVectorJson = String.valueOf(convertToBase64Bytes(descriptionVector));
+            jsonObject.put("descriptionVector", descriptionVectorJson);
+        } else {
+            JsonArray descriptionVectorJson;
+            try {
+                descriptionVectorJson = convertFloatVectorToJSON(descriptionVector);
+            } catch (JSONException e) {
+                throw new RuntimeException(e);
+            }
+            jsonObject.put("descriptionVector", descriptionVectorJson);
         }
         jsonObject.put("id", id);
         jsonObject.put("manufacturer", manufacturer);
@@ -584,7 +613,7 @@ public class Cars {
         jsonObject.put("colorRGBVector", colorRGB);
         jsonObject.put("description", description);
         jsonObject.put("evaluation", evaluation);
-        jsonObject.put("descriptionVector", descriptionVectorJson);
+
         return jsonObject;
     }
 
