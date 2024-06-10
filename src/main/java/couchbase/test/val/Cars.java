@@ -406,7 +406,7 @@ public class Cars {
             "Premium materials (leather, wood trim)"
     };
 
-    String[] smartFeatures = {
+    String[] smartCarFeatures = {
             "Autonomous driving capabilities",
             "Traffic sign recognition",
             "Head-up display",
@@ -451,7 +451,7 @@ public class Cars {
         this.setEmbeddingsModel(ws.model);
     }
 
-    public static ArrayList<String> selectRandomItems(String[] array, int numberOfItems) {
+    public ArrayList<String> selectRandomItems(String[] array, int numberOfItems) {
         if (numberOfItems > array.length) {
             throw new IllegalArgumentException("Number of items to select cannot be greater than the length of the array");
         }
@@ -460,12 +460,11 @@ public class Cars {
             numberOfItems = 1;
         }
 
-        Random random = new Random();
         ArrayList<String> selectedItems = new ArrayList<>();
         List<Integer> selectedIndices = new ArrayList<>();
 
         while (selectedItems.size() < numberOfItems) {
-            int randomIndex = random.nextInt(array.length);
+            int randomIndex = this.random.nextInt(array.length);
             if (!selectedIndices.contains(randomIndex)) {
                 selectedIndices.add(randomIndex);
                 selectedItems.add(array[randomIndex]);
@@ -480,6 +479,18 @@ public class Cars {
         for (float value: vector) jsonVal.add( value);
         return jsonVal;
     }
+
+    // Function to reduce the dimensionality to 128
+    private static float[] reduceTo128Dimensions(float[] embedding) {
+        int targetDimension = 128;
+        float[] reducedEmbedding = new float[targetDimension];
+        int originalDimension = embedding.length;
+        for (int i = 0; i < targetDimension; i++) {
+            reducedEmbedding[i] = embedding[i % originalDimension];
+        }
+        return reducedEmbedding;
+    }
+
     public void setEmbeddingsModel(String DJL_MODEL) {
         String DJL_PATH = "djl://ai.djl.huggingface.pytorch/" + DJL_MODEL;
         Criteria<String, float[]> criteria =
@@ -510,49 +521,67 @@ public class Cars {
     public ArrayList<JsonObject> getCarEvaluation(){
         int numReviews = this.random.nextInt(10);
         ArrayList<JsonObject> temp = new ArrayList<>();
+        JsonArray vectorArrays = JsonArray.create();
         for (int n = 0; n <= numReviews; n++) {
             JsonObject evaluation = JsonObject.create();
-            ArrayList<String> safety = selectRandomItems(safetyFeatures, this.random.nextInt(safetyFeatures.length));
+            ArrayList<String> safety = selectRandomItems(safetyFeatures,
+                    this.random.nextInt(safetyFeatures.length));
             ArrayList<String> comfort = selectRandomItems(comfortAndConvenience,
                     this.random.nextInt(comfortAndConvenience.length));
             ArrayList<String> interior = selectRandomItems(interiorAndCargoSpace,
                     this.random.nextInt(interiorAndCargoSpace.length));
             ArrayList<String> performance = selectRandomItems(performanceAndEfficiency,
                     this.random.nextInt(performanceAndEfficiency.length));
-            ArrayList<String> features = selectRandomItems(smartFeatures, this.random.nextInt(smartFeatures.length));
+            ArrayList<String> smartFeatures = selectRandomItems(smartCarFeatures,
+                    this.random.nextInt(smartCarFeatures.length));
+            float[] safetyVector = new float[0];
+            float[] smartFeaturesVector = new float[0];
+            float[] performanceVector = new float[0];
+            float[] interiorVector = new float[0];
+            float[] comfortVector = new float[0];
+            try {
+                safetyVector = this.predictor.predict(safety.toString());
+                smartFeaturesVector = this.predictor.predict(smartFeatures.toString());
+                performanceVector = this.predictor.predict(performance.toString());
+                interiorVector = this.predictor.predict(interior.toString());
+                comfortVector = this.predictor.predict(comfort.toString());
+
+                safetyVector = reduceTo128Dimensions(safetyVector);
+                smartFeaturesVector = reduceTo128Dimensions(smartFeaturesVector);
+                performanceVector = reduceTo128Dimensions(performanceVector);
+                interiorVector = reduceTo128Dimensions(interiorVector);
+                comfortVector = reduceTo128Dimensions(comfortVector);
+
+            } catch (TranslateException e) {
+                e.printStackTrace();
+            }
+            if (this.ws.base64) {
+                vectorArrays.add(convertToBase64Bytes(interiorVector));
+                vectorArrays.add(convertToBase64Bytes(comfortVector));
+                vectorArrays.add(convertToBase64Bytes(performanceVector));
+                vectorArrays.add(convertToBase64Bytes(smartFeaturesVector));
+                vectorArrays.add(convertToBase64Bytes(safetyVector));
+                evaluation.put("featureVector", vectorArrays);
+
+            } else {
+                try {
+                    vectorArrays.add(convertFloatVectorToJSON(interiorVector));
+                    vectorArrays.add(convertFloatVectorToJSON(comfortVector));
+                    vectorArrays.add(convertFloatVectorToJSON(performanceVector));
+                    vectorArrays.add(convertFloatVectorToJSON(smartFeaturesVector));
+                    vectorArrays.add(convertFloatVectorToJSON(safetyVector));
+                } catch (JSONException e) {
+                    throw new RuntimeException(e);
+                }
+                evaluation.put("featureVectors", vectorArrays);
+            }
             String variant = carModelVariants[this.random.nextInt(carModelVariants.length)];
             evaluation.put("variant", variant);
             evaluation.put("safety",safety );
             evaluation.put("comfort", comfort);
             evaluation.put("interior", interior);
             evaluation.put("peformance", performance);
-            evaluation.put("smart features", features);
-            String featureDescription = "This car comes with safety features such as " + String.join(", ", safety) +
-                    ". This car provide comfort of " + String.join(", ", comfort) + " and comes with interior " +
-                    "features such as " + String.join(", ", interior) +
-                    "This car has various performance related techs such as " +
-                    String.join(", ", performance) + "Many advance features in this car are - " +
-                    String.join(", ", features);
-            float[] featureVector = new float[0];
-            try {
-                featureVector = this.predictor.predict(featureDescription);
-            } catch (TranslateException e) {
-                e.printStackTrace();
-            }
-
-            if (this.ws.base64) {
-                String featureVectorVal = null;
-                featureVectorVal = convertToBase64Bytes(featureVector);
-                evaluation.put("featureVector", featureVectorVal);
-            } else{
-                JsonArray featureVectorVal;
-                try {
-                    featureVectorVal = convertFloatVectorToJSON(featureVector);
-                } catch (JSONException e) {
-                    throw new RuntimeException(e);
-                }
-                evaluation.put("featureVector", featureVectorVal);
-            }
+            evaluation.put("smart features", smartFeatures);
             temp.add(evaluation);
         }
         return temp;
@@ -587,8 +616,7 @@ public class Cars {
             e.printStackTrace();
         }
         if (this.ws.base64){
-            String descriptionVectorJson = null;
-            descriptionVectorJson = String.valueOf(convertToBase64Bytes(descriptionVector));
+            String descriptionVectorJson = String.valueOf(convertToBase64Bytes(descriptionVector));
             jsonObject.put("descriptionVector", descriptionVectorJson);
         } else {
             JsonArray descriptionVectorJson;
