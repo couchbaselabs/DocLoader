@@ -519,21 +519,16 @@ public class Cars {
         return Base64.getEncoder().encodeToString(floatsToBytes(floats));
     }
     public ArrayList<JsonObject> getCarEvaluation(){
-        int numReviews = this.random.nextInt(10);
+        int numReviews = this.random.nextInt(5);
         ArrayList<JsonObject> temp = new ArrayList<>();
         JsonArray vectorArrays = JsonArray.create();
         for (int n = 0; n <= numReviews; n++) {
             JsonObject evaluation = JsonObject.create();
-            ArrayList<String> safety = selectRandomItems(safetyFeatures,
-                    this.random.nextInt(safetyFeatures.length));
-            ArrayList<String> comfort = selectRandomItems(comfortAndConvenience,
-                    this.random.nextInt(comfortAndConvenience.length));
-            ArrayList<String> interior = selectRandomItems(interiorAndCargoSpace,
-                    this.random.nextInt(interiorAndCargoSpace.length));
-            ArrayList<String> performance = selectRandomItems(performanceAndEfficiency,
-                    this.random.nextInt(performanceAndEfficiency.length));
-            ArrayList<String> smartFeatures = selectRandomItems(smartCarFeatures,
-                    this.random.nextInt(smartCarFeatures.length));
+            ArrayList<String> safety = selectRandomItems(safetyFeatures, this.random.nextInt(5));
+            ArrayList<String> comfort = selectRandomItems(comfortAndConvenience, this.random.nextInt(5));
+            ArrayList<String> interior = selectRandomItems(interiorAndCargoSpace, this.random.nextInt(5));
+            ArrayList<String> performance = selectRandomItems(performanceAndEfficiency, this.random.nextInt(5));
+            ArrayList<String> smartFeatures = selectRandomItems(smartCarFeatures, this.random.nextInt(5));
             float[] safetyVector = new float[0];
             float[] smartFeaturesVector = new float[0];
             float[] performanceVector = new float[0];
