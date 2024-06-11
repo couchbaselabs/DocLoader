@@ -526,8 +526,8 @@ public class Cars {
             JsonObject evaluation = JsonObject.create();
             ArrayList<String> safety = selectRandomItems(safetyFeatures, this.random.nextInt(5));
             ArrayList<String> comfort = selectRandomItems(comfortAndConvenience, this.random.nextInt(5));
-            ArrayList<String> interior = selectRandomItems(interiorAndCargoSpace, this.random.nextInt(5));
-            ArrayList<String> performance = selectRandomItems(performanceAndEfficiency, this.random.nextInt(5));
+            ArrayList<String> interior = selectRandomItems(interiorAndCargoSpace, this.random.nextInt(3));
+            ArrayList<String> performance = selectRandomItems(performanceAndEfficiency, this.random.nextInt(4));
             ArrayList<String> smartFeatures = selectRandomItems(smartCarFeatures, this.random.nextInt(5));
             float[] safetyVector = new float[0];
             float[] smartFeaturesVector = new float[0];
