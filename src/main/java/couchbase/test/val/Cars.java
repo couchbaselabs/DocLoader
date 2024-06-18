@@ -521,8 +521,8 @@ public class Cars {
     public ArrayList<JsonObject> getCarEvaluation(){
         int numReviews = this.random.nextInt(5);
         ArrayList<JsonObject> temp = new ArrayList<>();
-        JsonArray vectorArrays = JsonArray.create();
         for (int n = 0; n <= numReviews; n++) {
+            JsonArray vectorArrays = JsonArray.create();
             JsonObject evaluation = JsonObject.create();
             ArrayList<String> safety = selectRandomItems(safetyFeatures, this.random.nextInt(5));
             ArrayList<String> comfort = selectRandomItems(comfortAndConvenience, this.random.nextInt(5));
