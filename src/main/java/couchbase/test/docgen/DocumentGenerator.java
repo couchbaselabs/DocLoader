@@ -12,6 +12,7 @@ import couchbase.test.key.RandomSizeKey;
 import couchbase.test.key.ReverseKey;
 import couchbase.test.key.SimpleKey;
 import couchbase.test.val.Hotel;
+import couchbase.test.val.MiniCars;
 import couchbase.test.val.Cars;
 import couchbase.test.val.NimbusM;
 import couchbase.test.val.NimbusP;
@@ -58,6 +59,8 @@ abstract class KVGenerator{
             this.valInstance = Hotel.class;
         else if (valClass.equals(Cars.class.getSimpleName()))
             this.valInstance = Cars.class;
+        else if (valClass.equals(MiniCars.class.getSimpleName()))
+            this.valInstance = MiniCars.class;
         else if (valClass.equals(Vector.class.getSimpleName()))
             this.valInstance = Vector.class;
         else if (valClass.equals(Product.class.getSimpleName()))
