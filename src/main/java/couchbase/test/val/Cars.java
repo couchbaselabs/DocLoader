@@ -23,11 +23,18 @@ import java.util.Base64;
 import java.util.Random;
 import java.util.List;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+
+
 public class Cars {
 
     private final WorkLoadSettings ws;
     Faker faker;
     private Random random;
+    public JsonNodeFactory jsonNodefactory = JsonNodeFactory.instance;
+    public ObjectMapper objectmapper = new ObjectMapper();
     public String[] carColors = {"darker blue", "darker green", "green again", "darker purple", "darker pink",
             "cloudy blue", "dark pastel green", "dust", "electric lime", "fresh green", "light eggplant",
             "nasty green", "really light blue", "tea", "warm purple", "yellowish tan", "cement", "dark grass green",
@@ -437,9 +444,9 @@ public class Cars {
         Color color = Color.decode(hexCode);
 
         JsonArray rgb = JsonArray.create();
-        rgb.add(color.getRed());
-        rgb.add(color.getGreen());
-        rgb.add(color.getBlue());
+        rgb.add(objectmapper.convertValue(jsonNodefactory.numberNode(1.1f * color.getRed()), Float.class));
+        rgb.add(objectmapper.convertValue(jsonNodefactory.numberNode(1.1f * color.getGreen()), Float.class));
+        rgb.add(objectmapper.convertValue(jsonNodefactory.numberNode(1.1f * color.getBlue()), Float.class));
         return rgb;
     }
     public Cars(WorkLoadSettings ws) {
@@ -476,7 +483,8 @@ public class Cars {
 
     public JsonArray convertFloatVectorToJSON(float[] vector) throws JSONException {
         JsonArray jsonVal = JsonArray.create();
-        for (float value: vector) jsonVal.add( value);
+        for (float value: vector) jsonVal.add(objectmapper.convertValue(jsonNodefactory.numberNode(value),
+                Float.class));
         return jsonVal;
     }
 
@@ -522,54 +530,54 @@ public class Cars {
         int numReviews = this.random.nextInt(5);
         ArrayList<JsonObject> temp = new ArrayList<>();
         for (int n = 0; n <= numReviews; n++) {
-            JsonArray vectorArrays = JsonArray.create();
+//            JsonArray vectorArrays = JsonArray.create();
             JsonObject evaluation = JsonObject.create();
             ArrayList<String> safety = selectRandomItems(safetyFeatures, this.random.nextInt(5));
             ArrayList<String> comfort = selectRandomItems(comfortAndConvenience, this.random.nextInt(5));
             ArrayList<String> interior = selectRandomItems(interiorAndCargoSpace, this.random.nextInt(3));
             ArrayList<String> performance = selectRandomItems(performanceAndEfficiency, this.random.nextInt(4));
             ArrayList<String> smartFeatures = selectRandomItems(smartCarFeatures, this.random.nextInt(5));
-            float[] safetyVector = new float[0];
-            float[] smartFeaturesVector = new float[0];
-            float[] performanceVector = new float[0];
-            float[] interiorVector = new float[0];
-            float[] comfortVector = new float[0];
-            try {
-                safetyVector = this.predictor.predict(safety.toString());
-                smartFeaturesVector = this.predictor.predict(smartFeatures.toString());
-                performanceVector = this.predictor.predict(performance.toString());
-                interiorVector = this.predictor.predict(interior.toString());
-                comfortVector = this.predictor.predict(comfort.toString());
-
-                safetyVector = reduceTo128Dimensions(safetyVector);
-                smartFeaturesVector = reduceTo128Dimensions(smartFeaturesVector);
-                performanceVector = reduceTo128Dimensions(performanceVector);
-                interiorVector = reduceTo128Dimensions(interiorVector);
-                comfortVector = reduceTo128Dimensions(comfortVector);
-
-            } catch (TranslateException e) {
-                e.printStackTrace();
-            }
-            if (this.ws.base64) {
-                vectorArrays.add(convertToBase64Bytes(interiorVector));
-                vectorArrays.add(convertToBase64Bytes(comfortVector));
-                vectorArrays.add(convertToBase64Bytes(performanceVector));
-                vectorArrays.add(convertToBase64Bytes(smartFeaturesVector));
-                vectorArrays.add(convertToBase64Bytes(safetyVector));
-                evaluation.put("featureVector", vectorArrays);
-
-            } else {
-                try {
-                    vectorArrays.add(convertFloatVectorToJSON(interiorVector));
-                    vectorArrays.add(convertFloatVectorToJSON(comfortVector));
-                    vectorArrays.add(convertFloatVectorToJSON(performanceVector));
-                    vectorArrays.add(convertFloatVectorToJSON(smartFeaturesVector));
-                    vectorArrays.add(convertFloatVectorToJSON(safetyVector));
-                } catch (JSONException e) {
-                    throw new RuntimeException(e);
-                }
-                evaluation.put("featureVectors", vectorArrays);
-            }
+//            float[] safetyVector = new float[0];
+//            float[] smartFeaturesVector = new float[0];
+//            float[] performanceVector = new float[0];
+//            float[] interiorVector = new float[0];
+//            float[] comfortVector = new float[0];
+//            try {
+//                safetyVector = this.predictor.predict(safety.toString());
+//                smartFeaturesVector = this.predictor.predict(smartFeatures.toString());
+//                performanceVector = this.predictor.predict(performance.toString());
+//                interiorVector = this.predictor.predict(interior.toString());
+//                comfortVector = this.predictor.predict(comfort.toString());
+//
+//                safetyVector = reduceTo128Dimensions(safetyVector);
+//                smartFeaturesVector = reduceTo128Dimensions(smartFeaturesVector);
+//                performanceVector = reduceTo128Dimensions(performanceVector);
+//                interiorVector = reduceTo128Dimensions(interiorVector);
+//                comfortVector = reduceTo128Dimensions(comfortVector);
+//
+//            } catch (TranslateException e) {
+//                e.printStackTrace();
+//            }
+//            if (this.ws.base64) {
+//                vectorArrays.add(convertToBase64Bytes(interiorVector));
+//                vectorArrays.add(convertToBase64Bytes(comfortVector));
+//                vectorArrays.add(convertToBase64Bytes(performanceVector));
+//                vectorArrays.add(convertToBase64Bytes(smartFeaturesVector));
+//                vectorArrays.add(convertToBase64Bytes(safetyVector));
+//                evaluation.put("featureVector", vectorArrays);
+//
+//            } else {
+//                try {
+//                    vectorArrays.add(convertFloatVectorToJSON(interiorVector));
+//                    vectorArrays.add(convertFloatVectorToJSON(comfortVector));
+//                    vectorArrays.add(convertFloatVectorToJSON(performanceVector));
+//                    vectorArrays.add(convertFloatVectorToJSON(smartFeaturesVector));
+//                    vectorArrays.add(convertFloatVectorToJSON(safetyVector));
+//                } catch (JSONException e) {
+//                    throw new RuntimeException(e);
+//                }
+//                evaluation.put("featureVectors", vectorArrays);
+//            }
             String variant = carModelVariants[this.random.nextInt(carModelVariants.length)];
             evaluation.put("variant", variant);
             evaluation.put("safety",safety );
@@ -602,9 +610,6 @@ public class Cars {
         String description = String.format(carDescription, manufacturer, transmission, year, color, category, rating);
         ArrayList<JsonObject> evaluation = getCarEvaluation();
         float[] descriptionVector = new float[0];
-        if (this.ws.base64) {
-
-        }
         try {
             descriptionVector = this.predictor.predict(description);
         } catch (TranslateException e) {
