@@ -156,7 +156,7 @@
                         <manifest>
                             <addClasspath>true</addClasspath>
                             <classpathPrefix>lib/</classpathPrefix>
-                            <mainClass>couchbase.test.rest.RestApplication</mainClass>
+                            <mainClass>couchbase.rest_server.RestApplication</mainClass>
                         </manifest>
                         <manifestEntries>
                             <Class-Path>.</Class-Path>
