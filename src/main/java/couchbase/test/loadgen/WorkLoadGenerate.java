@@ -51,6 +51,7 @@ public class WorkLoadGenerate extends Task{
     public GetOptions getOptions;
     public EsClient esClient = null;
     static Logger logger = LogManager.getLogger(WorkLoadGenerate.class);
+    private boolean stop_load = false;
 
     public WorkLoadGenerate(String taskName, DocumentGenerator dg, SDKClient client, String durability) {
         super(taskName);
@@ -101,6 +102,10 @@ public class WorkLoadGenerate extends Task{
         this.retryStrategy = retryStrategy;
     }
 
+    public void stop_load() {
+        this.stop_load = true;
+    }
+
     @Override
     public void run() {
         logger.info("Starting " + this.taskName);
@@ -133,7 +138,7 @@ public class WorkLoadGenerate extends Task{
         int ops = 0;
         boolean flag = false;
         Instant trackFailureTime_start = Instant.now();
-        while(true) {
+        while(! this.stop_load) {
             Instant trackFailureTime_end = Instant.now();
             Duration timeElapsed = Duration.between(trackFailureTime_start, trackFailureTime_end);
             if(timeElapsed.toMinutes() > 5) {

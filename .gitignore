@@ -11,3 +11,4 @@ build
 .gradle
 /bin/
 ./target/
+target/

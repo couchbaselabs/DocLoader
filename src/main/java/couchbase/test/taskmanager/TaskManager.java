@@ -35,12 +35,22 @@ public class TaskManager {
                 this.tasks.remove(taskName);
             } catch (InterruptedException | ExecutionException e) {
                 e.printStackTrace();
-            }    
+            }
         }
+    }
+
+    public boolean check_if_task_with_name_exists(String task_name) {
+        for (String taskName : this.tasks.keySet()) {
+            if (task_name.equals(taskName)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean getTaskResult(Task task) {
         try {
+            System.out.println("Get Result: " + task.taskName);
             this.tasks.get(task.taskName).get();
             this.tasks.remove(task.taskName);
         } catch (InterruptedException | ExecutionException e) {
