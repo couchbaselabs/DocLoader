@@ -1,13 +1,17 @@
 package couchbase.test.val;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Random;
 
+import com.couchbase.client.java.json.JsonArray;
 import com.couchbase.client.java.json.JsonObject;
 import com.github.javafaker.Faker;
 
@@ -26,13 +30,15 @@ public class Hotel {
     private ArrayList<String> url = new ArrayList<String>();
     private ArrayList<ArrayList<JsonObject>> reviews = new ArrayList<ArrayList<JsonObject>>();
     private int mutate;
-    private String mutate_field;
-    private Integer mutation_timeout;
     private List<String> mutate_field_list = new ArrayList<>();
 
     public WorkLoadSettings ws;
+    private float[] flt_buf;
+    private int flt_buf_length;
 
-
+    public Hotel() {
+        super();
+    }
 
     public Hotel(WorkLoadSettings ws) {
         super();
@@ -59,6 +65,13 @@ public class Hotel {
             url.add(faker.internet().url());
             this.setReviewsArray();
         }
+        this.flt_buf = new float[1024*1024];
+
+        for (int index=0; index<1024*1024; index++) {
+            float x = this.random.nextFloat();
+            this.flt_buf[index] = x;
+        }
+        this.flt_buf_length = this.flt_buf.length;
     }
 
     public void setReviewsArray() {
@@ -80,6 +93,22 @@ public class Hotel {
         }
         this.reviews.add(temp);
     }
+    public static byte[] floatsToBytes(float[] floats) {
+        byte bytes[] = new byte[Float.BYTES * floats.length];
+        ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().put(floats);
+        return bytes;
+    }
+
+    public static String convertToBase64Bytes(float[] floats) {
+        return Base64.getEncoder().encodeToString(floatsToBytes(floats));
+      }
+
+    private float[] get_float_array(int length, Random random_obj) {
+        int _slice = random_obj.nextInt(this.flt_buf_length - length);
+//        return flt_buf_al.subList(_slice, _slice + length);
+        return Arrays.copyOfRange(this.flt_buf, _slice, _slice+length);
+    }
+
     public JsonObject next(String key) {
         this.random = new Random();
         JsonObject jsonObject = JsonObject.create();
@@ -138,6 +167,20 @@ public class Hotel {
                 jsonObject.put("avg_rating", this.random.nextFloat()*5);
         }
         jsonObject.put("mutate", this.ws.mutated);
+
+        if(this.ws.mockVector) {
+            float[] vector = null;
+            vector = this.get_float_array(this.ws.dim, this.random);
+            if(this.ws.base64)
+                jsonObject.put("vector", convertToBase64Bytes(vector));
+            else {
+                JsonArray floatVector = JsonArray.create();
+                for (int i = 0; i < vector.length; i++) {
+                    floatVector.add(Float.valueOf(vector[i]));
+                }
+                jsonObject.put("vector", floatVector);
+            }
+        }
         return jsonObject;
     }
 }
