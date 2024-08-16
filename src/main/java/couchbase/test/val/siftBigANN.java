@@ -67,6 +67,7 @@ public class siftBigANN {
       }
 
     public Product1 next(String key) throws IOException {
+        int id = Integer.parseInt(key.split("-")[1]) - 1;
         float[] vector =  new float[128];
         if(inputStream.available() > 0) {
             byte[] byteArray = new byte[(int) 4];
@@ -82,41 +83,42 @@ public class siftBigANN {
             }
         }
         if(ws.dr.create_s == 0)
-            return new Product1(vector, new ArrayList<Integer>(Arrays.asList(5, 6, 7, 8, 9, 10)), "green",
+            return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(5, 6, 7, 8, 9, 10)), "green",
                     "Nike", "USA", "Shoes", "Apparel", 1.0f);
         if(ws.dr.create_s == 1000000)
-            return new Product1(vector, new ArrayList<Integer>(Arrays.asList(6, 7, 8, 9, 10)), "green",
+            return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(6, 7, 8, 9, 10)), "green",
                     "Nike", "USA", "Shoes", "Apparel", 1.5f);
         if(ws.dr.create_s == 5000000)
-            return new Product1(vector, new ArrayList<Integer>(Arrays.asList(6, 7, 8, 9, 10)), "red",
+            return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(6, 7, 8, 9, 10)), "red",
                     "Nike", "USA", "Shoes", "Apparel", 2.0f);
         if(ws.dr.create_s == 10000000)
-            return new Product1(vector, new ArrayList<Integer>(Arrays.asList(7, 8, 9, 10)), "red",
+            return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(7, 8, 9, 10)), "red",
                     "Adidas", "USA", "Shoes", "Apparel", 2.5f);
         if(ws.dr.create_s == 20000000)
-            return new Product1(vector, new ArrayList<Integer>(Arrays.asList(8, 9, 10)), "red",
+            return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(8, 9, 10)), "red",
                     "Adidas", "Canada", "Shoes", "Apparel", 3.0f);
         if(ws.dr.create_s == 50000000)
-            return new Product1(vector, new ArrayList<Integer>(Arrays.asList(9, 10)), "red",
+            return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(9, 10)), "red",
                     "Adidas", "Canada", "Jeans", "Apparel", 3.5f);
         if(ws.dr.create_s == 100000000)
-            return new Product1(vector, new ArrayList<Integer>(Arrays.asList(10)), "red",
+            return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(10)), "red",
                     "Adidas", "Canada", "Jeans", "Denim", 4.0f);
         if(ws.dr.create_s == 200000000)
-            return new Product1(vector, new ArrayList<Integer>(Arrays.asList(10)), "red",
+            return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(10)), "red",
                     "Adidas", "Canada", "Jeans", "Denim", 4.5f);
         if(ws.dr.create_s == 500000000)
-            return new Product1(vector, new ArrayList<Integer>(Arrays.asList()), "red",
+            return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList()), "red",
                     "Adidas", "Canada", "Jeans", "Denim", 4.5f);
         if(ws.dr.create_s == 1000000000)
-            return new Product1(vector, new ArrayList<Integer>(Arrays.asList()), "red",
+            return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList()), "red",
                     "Adidas", "Canada", "Jeans", "Denim", 4.5f);
         return null;
     }
     
 
     public class Product1 {
-
+        @JsonProperty
+        private int id;
         @JsonProperty
         private float[] embedding;
         @JsonProperty
@@ -137,6 +139,7 @@ public class siftBigANN {
         @JsonCreator
         public
         Product1(
+                @JsonProperty("id")int id,
                 @JsonProperty("embedding") float[] vector,
                 @JsonProperty("size") ArrayList<Integer> arrayList,
                 @JsonProperty("color") String color,
@@ -145,6 +148,7 @@ public class siftBigANN {
                 @JsonProperty("category") String category,
                 @JsonProperty("type") String type,
                 @JsonProperty("review") float review){
+            this.id = id;
             this.embedding = vector;
             this.size = arrayList;
             this.color = color;
