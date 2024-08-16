@@ -128,18 +128,19 @@ public class TaskRequest {
     private String durability_level;
     @JsonProperty("ops")
     private int ops;
+    @JsonProperty("gtm")
+    private boolean gtm;
     @JsonProperty("process_concurrency")
     private int process_concurrency;
     @JsonProperty("iterations")
     private int iterations;
 
-    // Used by get_task_result(), stop_task(), cancel_task()
+    // Used by add_new_task(), get_task_result(), stop_task(), cancel_task()
     @JsonProperty("task_id")
     private String task_name;
     /*
     Following params are yet to be implemented.
      -deleted,--deleted <arg>       To verify deleted docs
-     -gtm,--gtm <arg>               Go for max doc ops
      -loadType,--loadType <arg>     Hot/Cold
      -transaction_patterns <arg>    Transaction load pattern
      -validate,--validate <arg>     Validate Data during Reads
@@ -192,11 +193,33 @@ public class TaskRequest {
         return objectMapper.readValue(json, TaskRequest.class);
     }
 
+    private void init_taskmanager() {
+        this.task_manager = new TaskManager(this.num_workers);
+        System.out.println("Init TaskManager workers=" + this.num_workers);
+    }
+
+    private void abort_all_tasks() {
+        if (this.loader_tasks == null)
+            return;
+        for (String task_id : this.loader_tasks.keySet()) {
+            System.out.println("Aborting task ' " + task_id + " '");
+            this.task_manager.abortTask(this.loader_tasks.get(task_id));
+        }
+    }
+
+    private void shutdown_taskmanager() {
+        if (this.task_manager == null)
+            return;
+        this.abort_all_tasks();
+        System.out.println("Shutdown task manager");
+        this.task_manager.shutdown();
+    }
+
     public ResponseEntity<Map<String, Object>> init_task_manager() {
         Map<String, Object> body = new HashMap<>();
         HttpStatus ret_status;
         if (this.task_manager == null) {
-            this.task_manager = new TaskManager(num_workers);
+            this.init_taskmanager();
             body.put("workers", String.valueOf(num_workers));
             ret_status = HttpStatus.OK;
         } else {
@@ -208,9 +231,31 @@ public class TaskRequest {
     }
 
     public ResponseEntity<Map<String, Object>> shutdown_task_manager() {
-        this.task_manager.shutdown();
         Map<String, Object> body = new HashMap<>();
+        this.shutdown_taskmanager();
         body.put("status", true);
+        return new ResponseEntity<>(body, HttpStatus.OK);
+    }
+
+    public ResponseEntity<Map<String, Object>> reset_task_manager() {
+        Map<String, Object> body = new HashMap<>();
+        this.shutdown_taskmanager();
+        this.init_taskmanager();
+        this.loader_tasks = new ConcurrentHashMap<String, WorkLoadGenerate>();
+        body.put("status", true);
+        return new ResponseEntity<>(body, HttpStatus.OK);
+    }
+
+    public ResponseEntity<Map<String, Object>> submit_task() {
+        Map<String, Object> body = new HashMap<>();
+        try {
+            this.task_manager.submit(this.loader_tasks.get(this.task_name));
+            TimeUnit.MILLISECONDS.sleep(200);
+            body.put("status", true);
+        } catch (Exception e) {
+            body.put("status", false);
+            body.put("error", e.toString());
+        }
         return new ResponseEntity<>(body, HttpStatus.OK);
     }
 
@@ -312,7 +357,8 @@ public class TaskRequest {
             return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
         }
         try {
-            client = new SDKClient(master, this.bucket_name, this.scope_name, this.collection_name);
+            client = new SDKClient(master, this.bucket_name,
+                                   this.scope_name, this.collection_name);
             client.initialiseSDK();
         } catch (Exception e) {
             // e.printStackTrace();
@@ -325,21 +371,15 @@ public class TaskRequest {
         String task_name = "Task_" + this.task_id.incrementAndGet();
         int retry = 0;
         for (int i = 0; i < ws.workers; i++) {
-            try {
-                String th_name = task_name + "_" + i;
-                this.loader_tasks.put(th_name, new WorkLoadGenerate(
-                    th_name, dg, client, null, this.durability_level,
-                    this.doc_ttl, this.doc_ttl_unit, trackFailures, retry, null));
-                this.task_manager.submit(this.loader_tasks.get(th_name));
-
-                TimeUnit.MILLISECONDS.sleep(500);
-                task_names.add(th_name);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            String th_name = task_name + "_" + i;
+            this.loader_tasks.put(th_name, new WorkLoadGenerate(
+                th_name, dg, client, null, this.durability_level,
+                this.doc_ttl, this.doc_ttl_unit, trackFailures, retry, null));
+            task_names.add(th_name);
         }
         body.put("tasks", task_names);
         body.put("status", true);
+        System.out.println("Created obj task_name: " + task_name);
         return new ResponseEntity<>(body, HttpStatus.OK);
     }
 
