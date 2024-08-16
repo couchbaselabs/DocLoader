@@ -51,6 +51,12 @@ class RestHandlers {
         return taskRequest.get_task_result();
     }
 
+    // Submit task to TaskManager
+    @PostMapping(value="/submit_task")
+    public ResponseEntity<Map<String, Object>> submit_task(@RequestBody TaskRequest taskRequest) {
+        return taskRequest.submit_task();
+    }
+
     // Graceful way for stopping the load
     @PostMapping(value="/stop_task")
     public ResponseEntity<Map<String, Object>> stop_task(@RequestBody TaskRequest taskRequest) {
@@ -95,6 +101,18 @@ class RestHandlers {
         } catch (Exception e) {
             Map<String, Object> body = new HashMap<>();
             body.put("error", e.getMessage());
+            body.put("status", false);
+            return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @PostMapping(value="/reset_task_manager")
+    public ResponseEntity<Map<String, Object>> reset_task_manager(@RequestBody TaskRequest taskRequest) {
+        try {
+            return taskRequest.reset_task_manager();
+        } catch (Exception e) {
+            Map<String, Object> body = new HashMap<>();
+            body.put("error", e.toString());
             body.put("status", false);
             return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
         }
