@@ -47,13 +47,13 @@ public class siftBigANN {
         jsonTemplate1.put("type", "Apparel");
         jsonTemplate1.put("avg_review", 1);
         
-		try {
-			this.myFile = new File("/Users/ritesh.agarwal/eclipse-workspace/SIFTLoader/bigann/bigann_base.bvecs");
-			this.inputStream = new FileInputStream(myFile);
-			this.inputStream.skip(ws.dr.create_s * 132);
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+        try {
+            this.myFile = new File("/Users/ritesh.agarwal/eclipse-workspace/SIFTLoader/bigann/bigann_base.bvecs");
+            this.inputStream = new FileInputStream(myFile);
+            this.inputStream.skip(ws.dr.create_s * 132);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     public static byte[] floatsToBytes(float[] floats) {
@@ -67,22 +67,51 @@ public class siftBigANN {
       }
 
     public Product1 next(String key) throws IOException {
-    	float[] vector =  new float[128];
-    	if(inputStream.available() > 0) {
-			byte[] byteArray = new byte[(int) 4];
-			inputStream.read(byteArray);
-			int dim = ByteBuffer.wrap(byteArray).order(ByteOrder.LITTLE_ENDIAN).getInt();
-			if(dim > 128)
-				System.out.println(dim);
-			byte[] byteVector = new byte[(int) dim];
-			inputStream.read(byteVector);
-			int i = 0;
-			for (byte b : byteVector) {
-				vector[i++] = (float)Byte.toUnsignedInt(b);
-			}
-		}
-        return new Product1(vector, new ArrayList<Integer>(Arrays.asList(5, 6, 7, 8, 9, 10)), "green",
-        		"Nike", "USA", "Shoes", "Apparel", 1.0f);
+        float[] vector =  new float[128];
+        if(inputStream.available() > 0) {
+            byte[] byteArray = new byte[(int) 4];
+            inputStream.read(byteArray);
+            int dim = ByteBuffer.wrap(byteArray).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            if(dim > 128)
+                System.out.println(dim);
+            byte[] byteVector = new byte[(int) dim];
+            inputStream.read(byteVector);
+            int i = 0;
+            for (byte b : byteVector) {
+                vector[i++] = (float)Byte.toUnsignedInt(b);
+            }
+        }
+        if(ws.dr.create_s == 0)
+            return new Product1(vector, new ArrayList<Integer>(Arrays.asList(5, 6, 7, 8, 9, 10)), "green",
+                    "Nike", "USA", "Shoes", "Apparel", 1.0f);
+        if(ws.dr.create_s == 1000000)
+            return new Product1(vector, new ArrayList<Integer>(Arrays.asList(6, 7, 8, 9, 10)), "green",
+                    "Nike", "USA", "Shoes", "Apparel", 1.5f);
+        if(ws.dr.create_s == 5000000)
+            return new Product1(vector, new ArrayList<Integer>(Arrays.asList(6, 7, 8, 9, 10)), "red",
+                    "Nike", "USA", "Shoes", "Apparel", 2.0f);
+        if(ws.dr.create_s == 10000000)
+            return new Product1(vector, new ArrayList<Integer>(Arrays.asList(7, 8, 9, 10)), "red",
+                    "Adidas", "USA", "Shoes", "Apparel", 2.5f);
+        if(ws.dr.create_s == 20000000)
+            return new Product1(vector, new ArrayList<Integer>(Arrays.asList(8, 9, 10)), "red",
+                    "Adidas", "Canada", "Shoes", "Apparel", 3.0f);
+        if(ws.dr.create_s == 50000000)
+            return new Product1(vector, new ArrayList<Integer>(Arrays.asList(9, 10)), "red",
+                    "Adidas", "Canada", "Jeans", "Apparel", 3.5f);
+        if(ws.dr.create_s == 100000000)
+            return new Product1(vector, new ArrayList<Integer>(Arrays.asList(10)), "red",
+                    "Adidas", "Canada", "Jeans", "Denim", 4.0f);
+        if(ws.dr.create_s == 200000000)
+            return new Product1(vector, new ArrayList<Integer>(Arrays.asList(10)), "red",
+                    "Adidas", "Canada", "Jeans", "Denim", 4.5f);
+        if(ws.dr.create_s == 500000000)
+            return new Product1(vector, new ArrayList<Integer>(Arrays.asList()), "red",
+                    "Adidas", "Canada", "Jeans", "Denim", 4.5f);
+        if(ws.dr.create_s == 1000000000)
+            return new Product1(vector, new ArrayList<Integer>(Arrays.asList()), "red",
+                    "Adidas", "Canada", "Jeans", "Denim", 4.5f);
+        return null;
     }
     
 
@@ -108,14 +137,14 @@ public class siftBigANN {
         @JsonCreator
         public
         Product1(
-        		@JsonProperty("embedding") float[] vector,
-        		@JsonProperty("size") ArrayList<Integer> arrayList,
-        		@JsonProperty("color") String color,
-        		@JsonProperty("brand") String brand,
-        		@JsonProperty("country") String country,
-        		@JsonProperty("category") String category,
-        		@JsonProperty("type") String type,
-        		@JsonProperty("review") float review){
+                @JsonProperty("embedding") float[] vector,
+                @JsonProperty("size") ArrayList<Integer> arrayList,
+                @JsonProperty("color") String color,
+                @JsonProperty("brand") String brand,
+                @JsonProperty("country") String country,
+                @JsonProperty("category") String category,
+                @JsonProperty("type") String type,
+                @JsonProperty("review") float review){
             this.embedding = vector;
             this.size = arrayList;
             this.color = color;
@@ -126,68 +155,68 @@ public class siftBigANN {
             this.review = review;
         }
 
-		public float[] getEmbedding() {
-			return embedding;
-		}
+        public float[] getEmbedding() {
+            return embedding;
+        }
 
-		public void setEmbedding(float[] embedding) {
-			this.embedding = embedding;
-		}
+        public void setEmbedding(float[] embedding) {
+            this.embedding = embedding;
+        }
 
-		public ArrayList<Integer> getSize() {
-			return size;
-		}
+        public ArrayList<Integer> getSize() {
+            return size;
+        }
 
-		public void setSize(ArrayList<Integer> size) {
-			this.size = size;
-		}
+        public void setSize(ArrayList<Integer> size) {
+            this.size = size;
+        }
 
-		public String getColor() {
-			return color;
-		}
+        public String getColor() {
+            return color;
+        }
 
-		public void setColor(String color) {
-			this.color = color;
-		}
+        public void setColor(String color) {
+            this.color = color;
+        }
 
-		public String getBrand() {
-			return brand;
-		}
+        public String getBrand() {
+            return brand;
+        }
 
-		public void setBrand(String brand) {
-			this.brand = brand;
-		}
+        public void setBrand(String brand) {
+            this.brand = brand;
+        }
 
-		public String getCountry() {
-			return country;
-		}
+        public String getCountry() {
+            return country;
+        }
 
-		public void setCountry(String country) {
-			this.country = country;
-		}
+        public void setCountry(String country) {
+            this.country = country;
+        }
 
-		public String getCategory() {
-			return category;
-		}
+        public String getCategory() {
+            return category;
+        }
 
-		public void setCategory(String category) {
-			this.category = category;
-		}
+        public void setCategory(String category) {
+            this.category = category;
+        }
 
-		public String getType() {
-			return type;
-		}
+        public String getType() {
+            return type;
+        }
 
-		public void setType(String type) {
-			this.type = type;
-		}
+        public void setType(String type) {
+            this.type = type;
+        }
 
-		public Float getReview() {
-			return review;
-		}
+        public Float getReview() {
+            return review;
+        }
 
-		public void setReview(Float review) {
-			this.review = review;
-		}
+        public void setReview(Float review) {
+            this.review = review;
+        }
     }
 }

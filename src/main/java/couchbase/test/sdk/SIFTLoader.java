@@ -184,9 +184,9 @@ public class SIFTLoader {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-		int[] steps = new int[] {0, 1000000, 2000000, 5000000, 10000000, 20000000, 50000000, 100000000};
+		int[] steps = new int[] {0, 1000000, 2000000, 5000000, 10000000, 20000000, 50000000, 100000000, 200000000, 500000000, 1000000000};
 		int poolSize = Integer.parseInt(cmd.getOptionValue("workers", "10"));
-		for (int k = 0; k < steps.length - 2; k++) {
+		for (int k = 0; k < steps.length - 1; k++) {
 			for (int i = 0; i < poolSize; i++) {
 				WorkLoadSettings ws = new WorkLoadSettings(cmd.getOptionValue("keyPrefix", "test_docs-"),
 						Integer.parseInt(cmd.getOptionValue("keySize", "20")),
