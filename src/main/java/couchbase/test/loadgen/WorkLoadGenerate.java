@@ -231,7 +231,6 @@ public class WorkLoadGenerate extends Task{
                                         System.out.println("Validation failed for key: " + this.sdk.scope + ":" + this.sdk.collection + ":" + name);
                                         System.out.println("Actual Value - " + a);
                                         System.out.println("Expected Value - " + b);
-                                        this.sdk.disconnectCluster();
                                         System.out.println(this.taskName + " is completed!");
                                         return;
                                     }
@@ -239,7 +238,6 @@ public class WorkLoadGenerate extends Task{
                                     System.out.println("Validation failed for key: " + this.sdk.scope + ":" + this.sdk.collection + ":" + name);
                                     System.out.println("Actual Value - " + a);
                                     System.out.println("Expected Value - " + b);
-                                    this.sdk.disconnectCluster();
                                     System.out.println(this.taskName + " is completed!");
                                     return;
                                 }
