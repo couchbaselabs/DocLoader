@@ -50,7 +50,6 @@ public class TaskManager {
 
     public boolean getTaskResult(Task task) {
         try {
-            System.out.println("Get Result: " + task.taskName);
             this.tasks.get(task.taskName).get();
             this.tasks.remove(task.taskName);
         } catch (InterruptedException | ExecutionException e) {

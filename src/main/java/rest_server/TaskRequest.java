@@ -34,7 +34,7 @@ import java.util.concurrent.locks.Lock;
 public class TaskRequest {
     static TaskManager task_manager;
     static AtomicInteger task_id = new AtomicInteger();
-    static SDKClientPool sdk_client_pool = new SDKClientPool();
+    static SDKClientPool sdk_client_pool;
     static ArrayList known_servers = new ArrayList<Server>();
     static Object lock_obj = new Object();
     static private ConcurrentHashMap<String, WorkLoadGenerate> loader_tasks = new ConcurrentHashMap<String, WorkLoadGenerate>();
@@ -193,9 +193,16 @@ public class TaskRequest {
         return objectMapper.readValue(json, TaskRequest.class);
     }
 
+    private void reset_sdk_client_pool() {
+        if(this.sdk_client_pool != null)
+            this.sdk_client_pool.shutdown();
+        this.sdk_client_pool = new SDKClientPool();
+    }
+
     private void init_taskmanager() {
         this.task_manager = new TaskManager(this.num_workers);
         System.out.println("Init TaskManager workers=" + this.num_workers);
+        this.reset_sdk_client_pool();
     }
 
     private void abort_all_tasks() {
@@ -213,6 +220,7 @@ public class TaskRequest {
         this.abort_all_tasks();
         System.out.println("Shutdown task manager");
         this.task_manager.shutdown();
+        this.reset_sdk_client_pool();
     }
 
     public ResponseEntity<Map<String, Object>> init_task_manager() {
@@ -357,9 +365,15 @@ public class TaskRequest {
             return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
         }
         try {
-            client = new SDKClient(master, this.bucket_name,
-                                   this.scope_name, this.collection_name);
-            client.initialiseSDK();
+            int retry_left = 5;
+            client = this.sdk_client_pool.get_client_for_bucket(
+                this.bucket_name, this.scope_name, this.collection_name);
+            while ((client == null) && (retry_left >= 0)) {
+                this.sdk_client_pool.create_clients(this.bucket_name, master, 1);
+                client = this.sdk_client_pool.get_client_for_bucket(
+                    this.bucket_name, this.scope_name, this.collection_name);
+                retry_left -= 1;
+            }
         } catch (Exception e) {
             // e.printStackTrace();
             body.put("error", "Failed to initialize SDKClient");
