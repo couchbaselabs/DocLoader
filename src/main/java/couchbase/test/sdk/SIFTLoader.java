@@ -186,7 +186,8 @@ public class SIFTLoader {
 		}
 		int[] steps = new int[] {0, 1000000, 2000000, 5000000, 10000000, 20000000, 50000000, 100000000, 200000000, 500000000, 1000000000};
 		int poolSize = Integer.parseInt(cmd.getOptionValue("workers", "10"));
-		for (int k = 0; k < steps.length - 1; k++) {
+		int until = Integer.parseInt(cmd.getOptionValue(DRConstants.create_e, "0"));
+		for (int k = 0; k < steps.length - 1 && until > steps[k]; k++) {
 			for (int i = 0; i < poolSize; i++) {
 				WorkLoadSettings ws = new WorkLoadSettings(cmd.getOptionValue("keyPrefix", "test_docs-"),
 						Integer.parseInt(cmd.getOptionValue("keySize", "20")),
@@ -235,7 +236,7 @@ public class SIFTLoader {
 					e1.printStackTrace();
 				}
 				try {
-					String th_name = "Loader" + i;
+					String th_name = "Loader_" + k + "_" + ws.dr.create_s + "_" + ws.dr.create_e;
 					boolean trackFailures = false;
 					if (Integer.parseInt(cmd.getOptionValue("retry", "0")) > 0)
 						trackFailures = true;

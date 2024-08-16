@@ -82,34 +82,34 @@ public class siftBigANN {
                 vector[i++] = (float)Byte.toUnsignedInt(b);
             }
         }
-        if(ws.dr.create_s == 0)
+        if(ws.dr.create_s >= 0 && ws.dr.create_e <= 1000000)
             return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(5, 6, 7, 8, 9, 10)), "green",
                     "Nike", "USA", "Shoes", "Apparel", 1.0f);
-        if(ws.dr.create_s == 1000000)
+        if(ws.dr.create_s >= 1000000 && ws.dr.create_e <= 2000000)
             return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(6, 7, 8, 9, 10)), "green",
                     "Nike", "USA", "Shoes", "Apparel", 1.5f);
-        if(ws.dr.create_s == 5000000)
+        if(ws.dr.create_s >= 2000000 && ws.dr.create_e <= 5000000)
             return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(6, 7, 8, 9, 10)), "red",
                     "Nike", "USA", "Shoes", "Apparel", 2.0f);
-        if(ws.dr.create_s == 10000000)
+        if(ws.dr.create_s >= 5000000 && ws.dr.create_e <= 10000000)
             return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(7, 8, 9, 10)), "red",
                     "Adidas", "USA", "Shoes", "Apparel", 2.5f);
-        if(ws.dr.create_s == 20000000)
+        if(ws.dr.create_s >= 10000000 && ws.dr.create_e <= 20000000)
             return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(8, 9, 10)), "red",
                     "Adidas", "Canada", "Shoes", "Apparel", 3.0f);
-        if(ws.dr.create_s == 50000000)
+        if(ws.dr.create_s >= 20000000 && ws.dr.create_e <= 50000000)
             return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(9, 10)), "red",
                     "Adidas", "Canada", "Jeans", "Apparel", 3.5f);
-        if(ws.dr.create_s == 100000000)
+        if(ws.dr.create_s >= 50000000 && ws.dr.create_e <= 100000000)
             return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(10)), "red",
                     "Adidas", "Canada", "Jeans", "Denim", 4.0f);
-        if(ws.dr.create_s == 200000000)
+        if(ws.dr.create_s >= 100000000 && ws.dr.create_e <= 200000000)
             return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(10)), "red",
                     "Adidas", "Canada", "Jeans", "Denim", 4.5f);
-        if(ws.dr.create_s == 500000000)
+        if(ws.dr.create_s >= 200000000 && ws.dr.create_e <= 500000000)
             return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList()), "red",
                     "Adidas", "Canada", "Jeans", "Denim", 4.5f);
-        if(ws.dr.create_s == 1000000000)
+        if(ws.dr.create_s >= 500000000 && ws.dr.create_e == 1000000000)
             return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList()), "red",
                     "Adidas", "Canada", "Jeans", "Denim", 4.5f);
         return null;
