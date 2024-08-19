@@ -40,11 +40,48 @@ public class WorkLoadSettings extends WorkLoadBase {
     public Boolean rollback_transaction;
     public boolean elastic;
     public String model;
-	public boolean mockVector;
-	public int dim;
-	public boolean base64;
+    public boolean mockVector;
+    public int dim;
+    public boolean base64;
+    public String baseVectorsFilePath;
 
     /**** Constructors ****/
+    public WorkLoadSettings(String keyPrefix,
+            int keySize, int docSize, int c, int r, int u, int d, int e,
+            int workers, int ops, String loadType,
+            String keyType, String valueType,
+            boolean validate, boolean gtm, boolean deleted, int mutated,
+            boolean elastic, String model, boolean mockVector, int dim, boolean base64,
+            String mutate_field, Integer mutation_timeout,
+            String baseVectorsFilePath) {
+        super();
+        this.keyPrefix = keyPrefix;
+        this.keySize = keySize;
+        this.docSize = docSize;
+        this.creates = c;
+        this.reads = r;
+        this.updates = u;
+        this.deletes = d;
+        this.expiry = e;
+        this.workers = workers;
+        this.ops = ops;
+        this.batchSize = this.ops/this.workers;
+        this.gtm = gtm;
+        this.expectDeleted = deleted;
+        this.validate = validate;
+        this.mutated = mutated;
+        this.valueType = valueType;
+        this.keyType = keyType;
+        this.elastic = elastic;
+        this.model = model;
+        this.mockVector = mockVector;
+        this.dim = dim;
+        this.mutate_field = mutate_field;
+        this.mutation_timeout = mutation_timeout;
+        this.base64 = base64;
+        this.baseVectorsFilePath = baseVectorsFilePath;
+    };
+
     public WorkLoadSettings(String keyPrefix,
                             int keySize, int docSize, int c, int r, int u, int d, int e,
                             int workers, int ops, String loadType,
@@ -72,12 +109,12 @@ public class WorkLoadSettings extends WorkLoadBase {
     };
 
     public WorkLoadSettings(String keyPrefix,
-    		int keySize, int docSize, int c, int r, int u, int d, int e,
-    		int workers, int ops, String loadType,
-    		String keyType, String valueType,
-    		boolean validate, boolean gtm, boolean deleted, int mutated,
-    		boolean elastic, String model, boolean mockVector, int dim, boolean base64,
-    		String mutate_field, Integer mutation_timeout) {
+            int keySize, int docSize, int c, int r, int u, int d, int e,
+            int workers, int ops, String loadType,
+            String keyType, String valueType,
+            boolean validate, boolean gtm, boolean deleted, int mutated,
+            boolean elastic, String model, boolean mockVector, int dim, boolean base64,
+            String mutate_field, Integer mutation_timeout) {
         super();
         this.keyPrefix = keyPrefix;
         this.keySize = keySize;

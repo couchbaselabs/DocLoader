@@ -20,6 +20,7 @@ import couchbase.test.val.Product;
 import couchbase.test.val.SimpleValue;
 import couchbase.test.val.Vector;
 import couchbase.test.val.anySizeValue;
+import couchbase.test.val.siftBigANN;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
 
@@ -65,6 +66,8 @@ abstract class KVGenerator{
             this.valInstance = Vector.class;
         else if (valClass.equals(Product.class.getSimpleName()))
             this.valInstance = Product.class;
+        else if (valClass.equals(siftBigANN.class.getSimpleName()))
+            this.valInstance = siftBigANN.class;
         else
             this.valInstance = SimpleValue.class;
 
