@@ -2,15 +2,17 @@ package couchbase.test.val;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Random;
+import java.util.zip.GZIPInputStream;
 
-import com.couchbase.client.java.json.JsonObject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.github.javafaker.Faker;
@@ -21,7 +23,6 @@ public class siftBigANN {
     Faker faker;
     private Random random;
     public WorkLoadSettings ws;
-    private JsonObject jsonTemplate1 = JsonObject.create();
 //    t1M = {"vector": None, "size": [5, 6, 7, 8, 9, 10], "color": "green", "brand": "Nike", "country": "USA", "category": "Shoes", "type": "Apparel", "avg_review": 1}
 //    t2M = {"vector": None, "size": [6, 7, 8, 9, 10], "color": "green", "brand": "Nike", "country": "USA", "category": "Shoes", "type": "Apparel", "avg_review": 2}
 //    t5M = {"vector": None, "size": [7, 8, 9, 10], "color": "red", "brand": "Nike", "country": "USA", "category": "Shoes", "type": "Apparel", "avg_review": 2.5}
@@ -30,7 +31,7 @@ public class siftBigANN {
 //    t50M = {"vector": None, "size": [10], "color": "red", "brand": "Adidas", "country": "Canada", "category": "Jeans", "type": "Apparel", "avg_review": 4}
 //    t100M = {"vector": None, "color": "red", "brand": "Adidas", "country": "Canada", "category": "Jeans", "type": "Denim", "avg_review": 4.5}
     FileInputStream inputStream = null;
-    File myFile = null;
+    File fh = null;
     
     public siftBigANN(WorkLoadSettings ws) {
         super();
@@ -38,22 +39,28 @@ public class siftBigANN {
         this.random = new Random();
         this.random.setSeed(ws.keyPrefix.hashCode());
         
-        jsonTemplate1.put("vector", "");
-        jsonTemplate1.put("size", new ArrayList<Integer>(Arrays.asList(5, 6, 7, 8, 9, 10)));
-        jsonTemplate1.put("color", "green");
-        jsonTemplate1.put("brand", "Nike");
-        jsonTemplate1.put("country", "USA");
-        jsonTemplate1.put("category", "Shoes");
-        jsonTemplate1.put("type", "Apparel");
-        jsonTemplate1.put("avg_review", 1);
-        
         try {
-            this.myFile = new File("/Users/ritesh.agarwal/eclipse-workspace/SIFTLoader/bigann/bigann_base.bvecs");
-            this.inputStream = new FileInputStream(myFile);
+            this.inputStream = new FileInputStream(this.ws.baseVectorsFilePath);
             this.inputStream.skip(ws.dr.create_s * 132);
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+    public static void decompressGzip(Path source, Path target) throws IOException {
+
+        try (GZIPInputStream gis = new GZIPInputStream(
+                                      new FileInputStream(source.toFile()));
+             FileOutputStream fos = new FileOutputStream(target.toFile())) {
+
+            // copy GZIPInputStream to FileOutputStream
+            byte[] buffer = new byte[1024];
+            int len;
+            while ((len = gis.read(buffer)) > 0) {
+                fos.write(buffer, 0, len);
+            }
+
+        }
+
     }
 
     public static byte[] floatsToBytes(float[] floats) {
