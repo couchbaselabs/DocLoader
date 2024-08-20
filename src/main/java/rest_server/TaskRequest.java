@@ -166,7 +166,7 @@ public class TaskRequest {
             this.scope_name = "_default";
         if (this.collection_name == null)
             this.collection_name = "_default";
-        if (this.durability_level == null)
+        if ((this.durability_level == null) || (this.durability_level.equals("")))
             this.durability_level = "NONE";
         if (this.key_prefix == null)
             this.key_prefix = "test_doc-";
@@ -209,7 +209,7 @@ public class TaskRequest {
         if (this.loader_tasks == null)
             return;
         for (String task_id : this.loader_tasks.keySet()) {
-            System.out.println("Aborting task ' " + task_id + " '");
+            System.out.println("Aborting task '" + task_id + "'");
             this.task_manager.abortTask(this.loader_tasks.get(task_id));
         }
     }
@@ -357,7 +357,7 @@ public class TaskRequest {
 
         ws.dr = range;
         try {
-            dg = new DocumentGenerator(ws, ws.keyType, ws.valueType);
+            dg = new DocumentGenerator(ws, ws.keyType, ws.valueType, this.iterations);
         } catch (ClassNotFoundException e) {
             // e.printStackTrace();
             body.put("error", "Failed to create doc generator");
@@ -393,7 +393,6 @@ public class TaskRequest {
         }
         body.put("tasks", task_names);
         body.put("status", true);
-        System.out.println("Created obj task_name: " + task_name);
         return new ResponseEntity<>(body, HttpStatus.OK);
     }
 

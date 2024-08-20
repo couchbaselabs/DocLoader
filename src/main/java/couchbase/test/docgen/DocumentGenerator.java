@@ -30,33 +30,13 @@ abstract class KVGenerator{
     private Class<?> valInstance;
     protected Method keyMethod;
     protected Method valMethod;
+    protected Method iterationsMethod;
 
     public KVGenerator(WorkLoadSettings ws, String keyClass, String valClass) throws ClassNotFoundException {
         super();
         this.ws = ws;
-        if(keyClass.equals(RandomKey.class.getSimpleName()))
-            this.keyInstance = RandomKey.class;
-        else if(keyClass.equals(ReverseKey.class.getSimpleName()))
-            this.keyInstance = ReverseKey.class;
-        else if(keyClass.equals(RandomSizeKey.class.getSimpleName()))
-            this.keyInstance = RandomSizeKey.class;
-        else if(keyClass.equals(CircularKey.class.getSimpleName()))
-            this.keyInstance = CircularKey.class;
-        else
-            this.keyInstance = SimpleKey.class;
-
-        if(valClass.equals(anySizeValue.class.getSimpleName()))
-            this.valInstance = anySizeValue.class;
-        else if (valClass.equals(NimbusP.class.getSimpleName()))
-            this.valInstance = NimbusP.class;
-        else if (valClass.equals(NimbusM.class.getSimpleName()))
-            this.valInstance = NimbusM.class;
-        else if (valClass.equals(Hotel.class.getSimpleName()))
-            this.valInstance = Hotel.class;
-        else if (valClass.equals(Vector.class.getSimpleName()))
-            this.valInstance = Vector.class;
-        else
-            this.valInstance = SimpleValue.class;
+        this.setKeyInstance(keyClass);
+        this.setValInstance(valClass);
 
         try {
             this.keys = keyInstance.getConstructor(WorkLoadSettings.class).newInstance(ws);
@@ -78,6 +58,65 @@ abstract class KVGenerator{
         }
     }
 
+    public KVGenerator(WorkLoadSettings ws, String keyClass, String valClass,
+                       int iterations) throws ClassNotFoundException {
+        super();
+        this.ws = ws;
+        this.setKeyInstance(keyClass);
+        this.setValInstance(valClass);
+        try {
+            if (this.keyInstance.getSimpleName().equals(CircularKey.class.getSimpleName())) {
+                this.keys = keyInstance.getConstructor(WorkLoadSettings.class, int.class).newInstance(ws, iterations);
+                this.iterationsMethod = this.keyInstance.getDeclaredMethod("checkIterations", null);
+            }
+            else
+                this.keys = keyInstance.getConstructor(WorkLoadSettings.class).newInstance(ws);
+            this.vals = valInstance.getConstructor(WorkLoadSettings.class).newInstance(ws);
+            this.keyMethod = this.keyInstance.getDeclaredMethod("next", long.class);
+            this.valMethod = this.valInstance.getDeclaredMethod("next", String.class);
+        } catch (InstantiationException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        } catch (IllegalArgumentException e) {
+            e.printStackTrace();
+        } catch (InvocationTargetException e) {
+            e.printStackTrace();
+        } catch (NoSuchMethodException e) {
+            e.printStackTrace();
+        } catch (SecurityException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void setKeyInstance(String keyClass) {
+        if(keyClass.equals(RandomKey.class.getSimpleName()))
+            this.keyInstance = RandomKey.class;
+        else if(keyClass.equals(ReverseKey.class.getSimpleName()))
+            this.keyInstance = ReverseKey.class;
+        else if(keyClass.equals(RandomSizeKey.class.getSimpleName()))
+            this.keyInstance = RandomSizeKey.class;
+        else if(keyClass.equals(CircularKey.class.getSimpleName()))
+            this.keyInstance = CircularKey.class;
+        else
+            this.keyInstance = SimpleKey.class;
+    }
+
+    private void setValInstance(String valClass) {
+        if(valClass.equals(anySizeValue.class.getSimpleName()))
+            this.valInstance = anySizeValue.class;
+        else if (valClass.equals(NimbusP.class.getSimpleName()))
+            this.valInstance = NimbusP.class;
+        else if (valClass.equals(NimbusM.class.getSimpleName()))
+            this.valInstance = NimbusM.class;
+        else if (valClass.equals(Hotel.class.getSimpleName()))
+            this.valInstance = Hotel.class;
+        else if (valClass.equals(Vector.class.getSimpleName()))
+            this.valInstance = Vector.class;
+        else
+            this.valInstance = SimpleValue.class;
+    }
+
     public boolean has_next_create() {
         if (this.ws.dr.createItr.get() < this.ws.dr.create_e)
             return true;
@@ -87,9 +126,15 @@ abstract class KVGenerator{
     public boolean has_next_read() {
         if (this.ws.dr.readItr.get() < this.ws.dr.read_e)
             return true;
-        if (this.keyInstance.getSimpleName() == CircularKey.class.getSimpleName()) {
-            this.resetRead();
-            return true;
+        if (this.keyInstance.getSimpleName().equals(CircularKey.class.getSimpleName())) {
+            try {
+                if ((boolean)this.iterationsMethod.invoke(this.keys, null)) {
+                    this.resetRead();
+                    return true;
+                }
+            } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
+                e1.printStackTrace();
+            }
         }
         return false;
     }
@@ -97,9 +142,15 @@ abstract class KVGenerator{
     public boolean has_next_update() {
         if (this.ws.dr.updateItr.get() < this.ws.dr.update_e)
             return true;
-        if (this.keyInstance.getSimpleName() == CircularKey.class.getSimpleName()) {
-            this.resetUpdate();
-            return true;
+        if (this.keyInstance.getSimpleName().equals(CircularKey.class.getSimpleName())) {
+            try {
+                if ((boolean)this.iterationsMethod.invoke(this.keys, null)) {
+                    this.resetUpdate();
+                    return true;
+                }
+            } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
+                e1.printStackTrace();
+            }
         }
         return false;
     }
@@ -107,9 +158,15 @@ abstract class KVGenerator{
     public boolean has_next_expiry() {
         if (this.ws.dr.expiryItr.get() < this.ws.dr.expiry_e)
             return true;
-        if (this.keyInstance.getSimpleName() == CircularKey.class.getSimpleName()) {
-            this.resetExpiry();
-            return true;
+        if (this.keyInstance.getSimpleName().equals(CircularKey.class.getSimpleName())) {
+            try {
+                if ((boolean)this.iterationsMethod.invoke(this.keys, null)) {
+                    this.resetExpiry();
+                    return true;
+                }
+            } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
+                e1.printStackTrace();
+            }
         }
         return false;
     }
@@ -139,7 +196,12 @@ public class DocumentGenerator extends KVGenerator{
     boolean targetvB;
 
     public DocumentGenerator(WorkLoadSettings ws, String keyClass, String valClass) throws ClassNotFoundException {
-        super(ws, keyClass, valClass);
+        super(ws, keyClass, valClass, 1);
+    }
+
+    public DocumentGenerator(WorkLoadSettings ws, String keyClass,
+                             String valClass, int iterations) throws ClassNotFoundException {
+        super(ws, keyClass, valClass, iterations);
     }
 
     public WorkLoadSettings get_work_load_settings() {
