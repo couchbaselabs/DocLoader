@@ -71,7 +71,7 @@ public class siftBigANN {
       }
 
     public Product1 next(String key) throws IOException {
-        int id = Integer.parseInt(key.split("-")[1]) - 1;
+        int id = Integer.parseInt(key.split("-")[1]) - 1 + this.ws.mutated;
         float[] vector =  new float[128];
         if(mutateCount > 0) {
             byte[] byteArray = new byte[(int) 4];
