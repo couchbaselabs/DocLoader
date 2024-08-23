@@ -32,6 +32,9 @@ public class siftBigANN {
 //    t100M = {"vector": None, "color": "red", "brand": "Adidas", "country": "Canada", "category": "Jeans", "type": "Denim", "avg_review": 4.5}
     FileInputStream inputStream = null;
     File fh = null;
+	private FileInputStream mutateInputStream = null;
+	private long mutateCount;
+	private int remainingCount;
     
     public siftBigANN(WorkLoadSettings ws) {
         super();
@@ -41,26 +44,20 @@ public class siftBigANN {
         
         try {
             this.inputStream = new FileInputStream(this.ws.baseVectorsFilePath);
-            this.inputStream.skip(ws.dr.create_s * 132);
+            if(this.ws.creates > 0) {
+            	this.inputStream.skip(ws.dr.create_s * 132);
+            	mutateCount = this.ws.dr.create_e - this.ws.dr.create_s;
+            }
+            else if(this.ws.updates > 0) {
+            	this.inputStream.skip(ws.dr.update_s * 132 + this.ws.mutated * 132);
+            	mutateCount = this.ws.dr.update_e - this.ws.dr.update_s - this.ws.mutated;
+            	if(this.ws.mutated > 0)
+            		this.mutateInputStream  = new FileInputStream(this.ws.baseVectorsFilePath);
+            }
+            remainingCount = this.ws.mutated;
         } catch (IOException e) {
             e.printStackTrace();
         }
-    }
-    public static void decompressGzip(Path source, Path target) throws IOException {
-
-        try (GZIPInputStream gis = new GZIPInputStream(
-                                      new FileInputStream(source.toFile()));
-             FileOutputStream fos = new FileOutputStream(target.toFile())) {
-
-            // copy GZIPInputStream to FileOutputStream
-            byte[] buffer = new byte[1024];
-            int len;
-            while ((len = gis.read(buffer)) > 0) {
-                fos.write(buffer, 0, len);
-            }
-
-        }
-
     }
 
     public static byte[] floatsToBytes(float[] floats) {
@@ -76,7 +73,7 @@ public class siftBigANN {
     public Product1 next(String key) throws IOException {
         int id = Integer.parseInt(key.split("-")[1]) - 1;
         float[] vector =  new float[128];
-        if(inputStream.available() > 0) {
+        if(mutateCount > 0) {
             byte[] byteArray = new byte[(int) 4];
             inputStream.read(byteArray);
             int dim = ByteBuffer.wrap(byteArray).order(ByteOrder.LITTLE_ENDIAN).getInt();
@@ -84,6 +81,19 @@ public class siftBigANN {
                 System.out.println(dim);
             byte[] byteVector = new byte[(int) dim];
             inputStream.read(byteVector);
+            int i = 0;
+            for (byte b : byteVector) {
+                vector[i++] = (float)Byte.toUnsignedInt(b);
+            }
+            mutateCount -= 1;
+        } else if(remainingCount > 0) {
+            byte[] byteArray = new byte[(int) 4];
+            mutateInputStream.read(byteArray);
+            int dim = ByteBuffer.wrap(byteArray).order(ByteOrder.LITTLE_ENDIAN).getInt();
+            if(dim > 128)
+                System.out.println(dim);
+            byte[] byteVector = new byte[(int) dim];
+            mutateInputStream.read(byteVector);
             int i = 0;
             for (byte b : byteVector) {
                 vector[i++] = (float)Byte.toUnsignedInt(b);
@@ -115,10 +125,10 @@ public class siftBigANN {
                     "Adidas", "Canada", "Jeans", "Denim", 4.5f);
         if(ws.dr.create_s >= 200000000 && ws.dr.create_e <= 500000000)
             return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList()), "red",
-                    "Adidas", "Canada", "Jeans", "Denim", 4.5f);
+                    "Adidas", "Canada", "Jeans", "Denim", 5.0f);
         if(ws.dr.create_s >= 500000000 && ws.dr.create_e == 1000000000)
             return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList()), "red",
-                    "Adidas", "Canada", "Jeans", "Denim", 4.5f);
+                    "Adidas", "Canada", "Jeans", "Denim", 10.0f);
         return null;
     }
     

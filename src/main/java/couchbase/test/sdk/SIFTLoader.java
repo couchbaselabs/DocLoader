@@ -218,8 +218,16 @@ public class SIFTLoader {
         }
         int[] steps = new int[] {0, 1000000, 2000000, 5000000, 10000000, 20000000, 50000000, 100000000, 200000000, 500000000, 1000000000};
         int poolSize = Integer.parseInt(cmd.getOptionValue("workers", "10"));
-        int until = Integer.parseInt(cmd.getOptionValue(DRConstants.create_e, "0"));
-        for (int k = 0; k < steps.length - 1 && until > steps[k]; k++) {
+        int start_offset = 0, end_offset = 0;
+        if(Integer.parseInt(cmd.getOptionValue("cr", "0"))>0) {
+	        start_offset = Integer.parseInt(cmd.getOptionValue(DRConstants.create_s, "0"));
+	        end_offset = Integer.parseInt(cmd.getOptionValue(DRConstants.create_e, "0"));
+        } else if(Integer.parseInt(cmd.getOptionValue("up", "0"))>0) {
+        	start_offset = Integer.parseInt(cmd.getOptionValue(DRConstants.update_s, "0"));
+	        end_offset = Integer.parseInt(cmd.getOptionValue(DRConstants.update_e, "0"));
+        }
+        for (int k = 0; k < steps.length - 1 && end_offset > steps[k]; k++) {
+        	if(steps[k] < start_offset) continue; 
             for (int i = 0; i < poolSize; i++) {
                 WorkLoadSettings ws = new WorkLoadSettings(cmd.getOptionValue("keyPrefix", "test_docs-"),
                         Integer.parseInt(cmd.getOptionValue("keySize", "20")),
@@ -243,7 +251,7 @@ public class SIFTLoader {
                         siftFileName);
                 int step = (steps[k+1] - steps[k])/poolSize;
                 int start = steps[k] + step * i;
-                int end = steps[k] + step * (i+1);
+                int end = Math.min(steps[k] + step * (i+1), end_offset);
                 HashMap<String, Number> dr = new HashMap<String, Number>();
                 dr.put(DRConstants.create_s, start);
                 dr.put(DRConstants.create_e, end);
