@@ -323,7 +323,6 @@ public class TaskRequest {
                                    this.server_port);
 
         boolean validate = false;
-        boolean gtm = false;
         boolean deleted = false;
         int mutate = 0;
 
@@ -333,7 +332,7 @@ public class TaskRequest {
             this.delete_percent, this.expiry_percent,
             this.process_concurrency, this.ops, null,
             this.key_type, this.value_type,
-            validate, gtm, deleted, mutate);
+            validate, this.gtm, deleted, mutate);
 
         HashMap<String, Number> dr = new HashMap<String, Number>();
         dr.put(DRConstants.create_s, this.create_start_index);
