@@ -109,6 +109,7 @@ public class WorkLoadGenerate extends Task{
 
     @Override
     public void run() {
+        this.result = true;
         logger.info("Starting " + this.taskName);
         // Set timeout in WorkLoadSettings
         this.dg.ws.setTimeoutDuration(60, "seconds");
