@@ -8,6 +8,7 @@ import couchbase.test.loadgen.WorkLoadGenerate;
 import couchbase.test.sdk.SDKClient;
 import couchbase.test.sdk.SDKClientPool;
 import couchbase.test.sdk.Server;
+import couchbase.test.sdk.Result;
 import couchbase.test.taskmanager.TaskManager;
 import couchbase.test.taskmanager.Task;
 
@@ -22,8 +23,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.HashMap;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -134,16 +136,20 @@ public class TaskRequest {
     private int process_concurrency;
     @JsonProperty("iterations")
     private int iterations;
+    @JsonProperty("validate_docs")
+    private boolean validate_docs;
+    @JsonProperty("validate_deleted_docs")
+    private boolean validate_deleted_docs;
+    @JsonProperty("mutate")
+    private int mutate;
 
     // Used by add_new_task(), get_task_result(), stop_task(), cancel_task()
     @JsonProperty("task_id")
     private String task_name;
     /*
     Following params are yet to be implemented.
-     -deleted,--deleted <arg>       To verify deleted docs
      -loadType,--loadType <arg>     Hot/Cold
      -transaction_patterns <arg>    Transaction load pattern
-     -validate,--validate <arg>     Validate Data during Reads
      -valueType,--valueType <arg>
     */
 
@@ -191,6 +197,52 @@ public class TaskRequest {
     public static TaskRequest fromJson(String json) throws Exception {
         ObjectMapper objectMapper = new ObjectMapper();
         return objectMapper.readValue(json, TaskRequest.class);
+    }
+
+    private void log_request() {
+        System.out.println("server_ip: " + server_ip);
+        System.out.println("server_port: " + server_port);
+        System.out.println("username: " + username);
+        System.out.println("password: " + password);
+        System.out.println("bucket_name: " + bucket_name);
+        System.out.println("scope_name: " + scope_name);
+        System.out.println("collection_name: " + collection_name);
+        System.out.println("create_percent: " + create_percent);
+        System.out.println("create_start_index: " + create_start_index);
+        System.out.println("create_end_index: " + create_end_index);
+        System.out.println("delete_percent: " + delete_percent);
+        System.out.println("delete_start_index: " + delete_start_index);
+        System.out.println("delete_end_index: " + delete_end_index);
+        System.out.println("update_percent: " + update_percent);
+        System.out.println("update_start_index: " + update_start_index);
+        System.out.println("update_end_index: " + update_end_index);
+        System.out.println("read_percent: " + read_percent);
+        System.out.println("read_start_index: " + read_start_index);
+        System.out.println("read_end_index: " + read_end_index);
+        System.out.println("touch_start_index: " + touch_start_index);
+        System.out.println("touch_end_index: " + touch_end_index);
+        System.out.println("replace_start_index: " + replace_start_index);
+        System.out.println("replace_end_index: " + replace_end_index);
+        System.out.println("expiry_percent: " + expiry_percent);
+        System.out.println("expiry_start_index: " + expiry_start_index);
+        System.out.println("expiry_end_index: " + expiry_end_index);
+        System.out.println("key_prefix: " + key_prefix);
+        System.out.println("key_size: " + key_size);
+        System.out.println("doc_size: " + doc_size);
+        System.out.println("key_type: " + key_type);
+        System.out.println("value_type: " + value_type);
+        System.out.println("timeout: " + timeout);
+        System.out.println("timeout_unit: " + timeout_unit);
+        System.out.println("doc_ttl: " + doc_ttl);
+        System.out.println("doc_ttl_unit: " + doc_ttl_unit);
+        System.out.println("durability_level: " + durability_level);
+        System.out.println("ops: " + ops);
+        System.out.println("gtm: " + gtm);
+        System.out.println("process_concurrency: " + process_concurrency);
+        System.out.println("iterations: " + iterations);
+        System.out.println("validate_docs: " + validate_docs);
+        System.out.println("validate_deleted_docs: " + validate_deleted_docs);
+        System.out.println("mutate: " + mutate);
     }
 
     private void reset_sdk_client_pool() {
@@ -271,9 +323,21 @@ public class TaskRequest {
         Map<String, Object> body = new HashMap<>();
         WorkLoadGenerate task = this.loader_tasks.get(this.task_name);
         if (task != null) {
+            Map<String, Object> failures = new HashMap<>();
             boolean okay = this.task_manager.getTaskResult(task);
             this.loader_tasks.remove(this.task_name);
-            body.put("fail", task.failedMutations);
+            for (HashMap.Entry<String, List<Result>> optype: task.failedMutations.entrySet()) {
+                optype.getValue().forEach (
+                    (failed_result) -> {
+                        Map<String, Object> res_obj = new HashMap<String, Object>();
+                        res_obj.put("value", failed_result.document().toString());
+                        res_obj.put("error", failed_result.err().toString());
+                        res_obj.put("status", failed_result.status());
+                        failures.put(failed_result.id(), res_obj);
+                    }
+                );
+            }
+            body.put("fail", failures);
             body.put("status", okay);
         } else {
             body.put("error", "Task " + this.task_name + " does not exists");
@@ -322,17 +386,14 @@ public class TaskRequest {
                                    this.username, this.password,
                                    this.server_port);
 
-        boolean validate = false;
-        boolean deleted = false;
-        int mutate = 0;
-
         WorkLoadSettings ws = new WorkLoadSettings(
             this.key_prefix, this.key_size, this.doc_size,
             this.create_percent, this.read_percent, this.update_percent,
             this.delete_percent, this.expiry_percent,
             this.process_concurrency, this.ops, null,
             this.key_type, this.value_type,
-            validate, this.gtm, deleted, mutate);
+            this.validate_docs, this.gtm, this.validate_deleted_docs,
+            this.mutate);
 
         HashMap<String, Number> dr = new HashMap<String, Number>();
         dr.put(DRConstants.create_s, this.create_start_index);
