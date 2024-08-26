@@ -277,7 +277,7 @@ public class WorkLoadGenerate extends Task{
                 }
         }
         logger.info(this.taskName + " is completed!");
-        if (retryTimes > 0 && failedMutations.size() > 0)
+        if (retryTimes > 0 && failedMutations.size() > 0) {
             this.result = true;
             for (HashMap.Entry<String, List<Result>> optype: failedMutations.entrySet()) {
                 for (Result r: optype.getValue()) {
@@ -321,5 +321,6 @@ public class WorkLoadGenerate extends Task{
                     }
                 }
             }
+        }
     }
 }
