@@ -38,7 +38,16 @@ public class RandomKey extends SimpleKey{
         Random random_obj = new Random();
         random_obj.setSeed(doc_index);
         String counter = Long.toString(doc_index);
-        return this.get_random_string(ws.keySize - counter.length()-1, random_obj) + "-" +counter;
+        String doc_key = this.get_random_string(
+            ws.keySize - counter.length()-1, random_obj) + "-" +counter;
+        if (this.ws.target_vbuckets != null) {
+            while (! this.contains(this.ws.target_vbuckets,
+                                   this.get_vbucket_for_key(doc_key))) {
+                 doc_key = this.get_random_string(
+                    ws.keySize - counter.length()-1, random_obj) + "-" +counter;
+            }
+        }
+        return doc_key;
     }
 
     public String get_random_string(int length, Random random_obj) {
