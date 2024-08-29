@@ -106,6 +106,35 @@ public class TaskRequest {
     private int expiry_start_index;
     @JsonProperty("expiry_end")
     private int expiry_end_index;
+    // Subdoc params
+    @JsonProperty("subdoc_percent")
+    private int subdoc_percent;
+    @JsonProperty("create_path")
+    private boolean create_path;
+    @JsonProperty("is_subdoc_xattr")
+    private boolean is_subdoc_xattr;
+    @JsonProperty("is_subdoc_sys_xattr")
+    private boolean is_subdoc_sys_xattr;
+    // Subdoc insert params
+    @JsonProperty("sd_insert_start")
+    private int sd_insert_start_index;
+    @JsonProperty("sd_insert_end")
+    private int sd_insert_end_index;
+    // Subdoc upsert params
+    @JsonProperty("sd_upsert_start")
+    private int sd_upsert_start_index;
+    @JsonProperty("sd_upsert_end")
+    private int sd_upsert_end_index;
+    // Subdoc remove params
+    @JsonProperty("sd_remove_start")
+    private int sd_remove_start_index;
+    @JsonProperty("sd_remove_end")
+    private int sd_remove_end_index;
+    // Subdoc lookup params
+    @JsonProperty("sd_read_start")
+    private int sd_read_start_index;
+    @JsonProperty("sd_read_end")
+    private int sd_read_end_index;
     // Document related params
     @JsonProperty("key_prefix")
     private String key_prefix;
@@ -166,7 +195,8 @@ public class TaskRequest {
                 + this.update_percent
                 + this.read_percent
                 + this.delete_percent
-                + this.expiry_percent != 100)
+                + this.expiry_percent
+                + this.subdoc_percent != 100)
             return false;
 
         // Set default values if null
@@ -228,6 +258,12 @@ public class TaskRequest {
         System.out.println("expiry_percent: " + expiry_percent);
         System.out.println("expiry_start_index: " + expiry_start_index);
         System.out.println("expiry_end_index: " + expiry_end_index);
+        System.out.println("subdoc_percent: " + subdoc_percent);
+        System.out.println("create_path: " + create_path);
+        System.out.println("is_subdoc_xattr: " + is_subdoc_xattr);
+        System.out.println("is_subdoc_sys_xattr: " + is_subdoc_sys_xattr);
+        System.out.println("sd_insert_start_index: " + sd_insert_start_index);
+        System.out.println("sd_insert_end_index: " + sd_insert_end_index);
         System.out.println("key_prefix: " + key_prefix);
         System.out.println("key_size: " + key_size);
         System.out.println("doc_size: " + doc_size);
@@ -454,11 +490,11 @@ public class TaskRequest {
         WorkLoadSettings ws = new WorkLoadSettings(
             this.key_prefix, this.key_size, this.doc_size,
             this.create_percent, this.read_percent, this.update_percent,
-            this.delete_percent, this.expiry_percent,
+            this.delete_percent, this.expiry_percent, this.subdoc_percent,
             this.process_concurrency, this.ops, null,
             this.key_type, this.value_type,
             this.validate_docs, this.gtm, this.validate_deleted_docs,
-            this.mutate);
+            this.mutate, this.create_path, this.is_subdoc_xattr, this.is_subdoc_sys_xattr);
 
         HashMap<String, Number> dr = new HashMap<String, Number>();
         dr.put(DRConstants.create_s, this.create_start_index);
@@ -475,6 +511,15 @@ public class TaskRequest {
         dr.put(DRConstants.replace_e, this.replace_end_index);
         dr.put(DRConstants.expiry_s, this.expiry_start_index);
         dr.put(DRConstants.expiry_e, this.expiry_end_index);
+        // Subdoc related indexes
+        dr.put(DRConstants.subdoc_insert_s, this.sd_insert_start_index);
+        dr.put(DRConstants.subdoc_insert_e, this.sd_insert_end_index);
+        dr.put(DRConstants.subdoc_upsert_s, this.sd_upsert_start_index);
+        dr.put(DRConstants.subdoc_upsert_e, this.sd_upsert_end_index);
+        dr.put(DRConstants.subdoc_remove_s, this.sd_remove_start_index);
+        dr.put(DRConstants.subdoc_remove_e, this.sd_remove_end_index);
+        dr.put(DRConstants.subdoc_read_s, this.sd_read_start_index);
+        dr.put(DRConstants.subdoc_read_e, this.sd_read_end_index);
 
         SDKClient client;
         DocRange range = new DocRange(dr);
@@ -483,7 +528,7 @@ public class TaskRequest {
         ws.dr = range;
         try {
             dg = new DocumentGenerator(ws, ws.keyType, ws.valueType, this.iterations);
-        } catch (ClassNotFoundException e) {
+        } catch (Exception e) {
             // e.printStackTrace();
             body.put("error", "Failed to create doc generator");
             body.put("message", e.toString());

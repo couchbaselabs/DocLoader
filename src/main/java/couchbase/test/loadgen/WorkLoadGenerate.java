@@ -25,9 +25,14 @@ import com.couchbase.client.java.kv.GetOptions;
 import com.couchbase.client.java.kv.InsertOptions;
 import com.couchbase.client.java.kv.RemoveOptions;
 import com.couchbase.client.java.kv.UpsertOptions;
+import com.couchbase.client.java.kv.LookupInSpec;
+import com.couchbase.client.java.kv.LookupInOptions;
+import com.couchbase.client.java.kv.MutateInOptions;
+import com.couchbase.client.java.kv.MutateInSpec;
 
 import couchbase.test.docgen.DocumentGenerator;
 import couchbase.test.sdk.DocOps;
+import couchbase.test.sdk.SubDocOps;
 import couchbase.test.sdk.Result;
 import couchbase.test.sdk.SDKClient;
 import couchbase.test.taskmanager.Task;
@@ -38,6 +43,7 @@ public class WorkLoadGenerate extends Task{
     DocumentGenerator dg;
     public SDKClient sdk;
     public DocOps docops;
+    public SubDocOps subDocOps;
     public String durability;
     public HashMap<String, List<Result>> failedMutations = new HashMap<String, List<Result>>();
     public boolean trackFailures = true;
@@ -50,6 +56,8 @@ public class WorkLoadGenerate extends Task{
     public InsertOptions setOptions;
     public RemoveOptions removeOptions;
     public GetOptions getOptions;
+    public MutateInOptions mutateInOptions;
+    public LookupInOptions lookupInOptions;
     public EsClient esClient = null;
     static Logger logger = LogManager.getLogger(WorkLoadGenerate.class);
     private boolean stop_load = false;
@@ -58,6 +66,7 @@ public class WorkLoadGenerate extends Task{
         super(taskName);
         this.dg = dg;
         this.docops = new DocOps();
+        this.subDocOps = new SubDocOps();
         this.sdk = client;
         this.durability = durability;
     }
@@ -66,6 +75,7 @@ public class WorkLoadGenerate extends Task{
         super(taskName);
         this.dg = dg;
         this.docops = new DocOps();
+        this.subDocOps = new SubDocOps();
         this.sdk = client;
         this.durability = durability;
         this.trackFailures = trackFailures;
@@ -79,6 +89,7 @@ public class WorkLoadGenerate extends Task{
         super(taskName);
         this.dg = dg;
         this.docops = new DocOps();
+        this.subDocOps = new SubDocOps();
         this.sdk = client;
         this.durability = durability;
         this.trackFailures = trackFailures;
@@ -93,6 +104,7 @@ public class WorkLoadGenerate extends Task{
         super(taskName);
         this.dg = dg;
         this.docops = new DocOps();
+        this.subDocOps = new SubDocOps();
         this.sdk = client;
         this.esClient = esClient;
         this.durability = durability;
@@ -137,6 +149,12 @@ public class WorkLoadGenerate extends Task{
         getOptions = GetOptions.getOptions()
                 .timeout(this.dg.ws.timeout)
                 .retryStrategy(this.dg.ws.retryStrategy);
+        mutateInOptions = MutateInOptions.mutateInOptions()
+                .expiry(this.dg.ws.getDuration(this.exp, this.exp_unit))
+                .timeout(this.dg.ws.timeout)
+                .durability(this.dg.ws.durability)
+                .retryStrategy(this.dg.ws.retryStrategy);
+        lookupInOptions = LookupInOptions.lookupInOptions();
         int ops = 0;
         boolean flag = false;
         Instant trackFailureTime_start = Instant.now();
@@ -257,6 +275,37 @@ public class WorkLoadGenerate extends Task{
                         }
                     }
                     ops += dg.ws.batchSize*dg.ws.reads/100;
+                }
+            }
+            if(dg.ws.subdocs> 0) {
+                List<Tuple2<String,List<MutateInSpec>>> docs;
+
+                docs = dg.nextSubDocBatch("insert");
+                if (docs.size()>0) {
+                    flag = true;
+                    List<HashMap<String,Object>> result = subDocOps.bulkSubDocOperation(this.sdk.connection, docs, mutateInOptions);
+                    ops += dg.ws.batchSize*dg.ws.subdocs/100;
+                }
+
+                docs = dg.nextSubDocBatch("upsert");
+                if (docs.size()>0) {
+                    flag = true;
+                    List<HashMap<String,Object>> result = subDocOps.bulkSubDocOperation(this.sdk.connection, docs, mutateInOptions);
+                    ops += dg.ws.batchSize*dg.ws.subdocs/100;
+                }
+
+                List<Tuple2<String,List<LookupInSpec>>> lookup_docs = dg.nextSubDocLookupBatch();
+                if (lookup_docs.size()>0) {
+                    flag = true;
+                    List<HashMap<String,Object>> result = subDocOps.bulkGetSubDocOperation(this.sdk.connection, lookup_docs, lookupInOptions);
+                    ops += dg.ws.batchSize*dg.ws.subdocs/100;
+                }
+
+                docs = dg.nextSubDocBatch("remove");
+                if (docs.size()>0) {
+                    flag = true;
+                    List<HashMap<String,Object>> result = subDocOps.bulkSubDocOperation(this.sdk.connection, docs, mutateInOptions);
+                    ops += dg.ws.batchSize*dg.ws.subdocs/100;
                 }
             }
             if(ops == 0)

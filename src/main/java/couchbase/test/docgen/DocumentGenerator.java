@@ -15,10 +15,14 @@ import couchbase.test.val.Hotel;
 import couchbase.test.val.NimbusM;
 import couchbase.test.val.NimbusP;
 import couchbase.test.val.SimpleValue;
+import couchbase.test.val.SimpleSubDocValue;
 import couchbase.test.val.Vector;
 import couchbase.test.val.anySizeValue;
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
+
+import com.couchbase.client.java.kv.LookupInSpec;
+import com.couchbase.client.java.kv.MutateInSpec;
 
 abstract class KVGenerator{
     public WorkLoadSettings ws;
@@ -30,6 +34,8 @@ abstract class KVGenerator{
     private Class<?> valInstance;
     protected Method keyMethod;
     protected Method valMethod;
+    protected Method subdocValMethod;
+    protected Method subdocLookupMethod;
     protected Method iterationsMethod;
     private int[] target_vbuckets;
 
@@ -44,6 +50,8 @@ abstract class KVGenerator{
             this.vals = valInstance.getConstructor(WorkLoadSettings.class).newInstance(ws);
             this.keyMethod = this.keyInstance.getDeclaredMethod("next", long.class);
             this.valMethod = this.valInstance.getDeclaredMethod("next", String.class);
+            this.subdocValMethod = this.valInstance.getDeclaredMethod("next", String.class, String.class);
+            this.subdocLookupMethod = this.valInstance.getDeclaredMethod("next_lookup", String.class);
         } catch (InstantiationException e) {
             e.printStackTrace();
         } catch (IllegalAccessException e) {
@@ -114,6 +122,8 @@ abstract class KVGenerator{
             this.valInstance = Hotel.class;
         else if (valClass.equals(Vector.class.getSimpleName()))
             this.valInstance = Vector.class;
+        else if (valClass.equals(SimpleSubDocValue.class.getSimpleName()))
+            this.valInstance = SimpleSubDocValue.class;
         else
             this.valInstance = SimpleValue.class;
     }
@@ -174,6 +184,47 @@ abstract class KVGenerator{
 
     public boolean has_next_delete() {
         if (this.ws.dr.deleteItr.get() < this.ws.dr.delete_e)
+            return true;
+        return false;
+    }
+
+    public boolean has_next_subdoc(String op_type) {
+        switch(op_type) {
+            case "insert":
+                if (this.ws.dr.subdocInsertItr.get() < this.ws.dr.subdocInsert_e)
+                    return true;
+                return false;
+            case "upsert":
+                if (this.ws.dr.subdocUpsertItr.get() < this.ws.dr.subdocUpsert_e)
+                    return true;
+                return false;
+            case "remove":
+                if (this.ws.dr.subdocRemoveItr.get() < this.ws.dr.subdocRemove_e)
+                    return true;
+                return false;
+            case "lookup":
+                if (this.ws.dr.subdocReadItr.get() < this.ws.dr.subdocRead_e)
+                    return true;
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    public boolean has_next_subdoc_upsert() {
+        if (this.ws.dr.subdocUpsertItr.get() < this.ws.dr.subdocUpsert_e)
+            return true;
+        return false;
+    }
+
+    public boolean has_next_subdoc_remove() {
+        if (this.ws.dr.subdocRemoveItr.get() < this.ws.dr.subdocRemove_e)
+            return true;
+        return false;
+    }
+
+    public boolean has_next_subdoc_lookup() {
+        if (this.ws.dr.subdocReadItr.get() < this.ws.dr.subdocRead_e)
             return true;
         return false;
     }
@@ -259,6 +310,49 @@ public class DocumentGenerator extends KVGenerator{
         return Tuples.of(k, v);
     }
 
+    public Tuple2<String, List<MutateInSpec>>nextSubDoc(String op_type) {
+        long temp;
+        String key = null;
+        List<MutateInSpec> specs = null;
+
+        switch(op_type) {
+            case "insert":
+                temp = this.ws.dr.subdocInsertItr.incrementAndGet();
+                break;
+            case "upsert":
+                temp = this.ws.dr.subdocUpsertItr.incrementAndGet();
+                break;
+            case "remove":
+                temp = this.ws.dr.subdocRemoveItr.incrementAndGet();
+                break;
+            case "lookup":
+                temp = this.ws.dr.subdocReadItr.incrementAndGet();
+                break;
+            default:
+                return null;
+        }
+        try {
+            key = (String) this.keyMethod.invoke(this.keys, temp);
+            specs = (List<MutateInSpec>) this.subdocValMethod.invoke(this.vals, key, op_type);
+        } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
+            e1.printStackTrace();
+        }
+        return Tuples.of(key, specs);
+    }
+
+    public Tuple2<String, List<LookupInSpec>>nextSubDocLookup() {
+        String key = null;
+        List<LookupInSpec> specs = null;
+        long temp = this.ws.dr.subdocReadItr.incrementAndGet();
+        try {
+            key = (String) this.keyMethod.invoke(this.keys, temp);
+            specs = (List<LookupInSpec>) this.subdocLookupMethod.invoke(this.vals, key);
+        } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
+            e1.printStackTrace();
+        }
+        return Tuples.of(key, specs);
+    }
+
     public List<Tuple2<String, Object>> nextInsertBatch() {
         List<Tuple2<String, Object>> docs = new ArrayList<Tuple2<String,Object>>();
         int count = 0;
@@ -310,6 +404,28 @@ public class DocumentGenerator extends KVGenerator{
             } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
                 e.printStackTrace();
             }
+            count += 1;
+        }
+        return docs;
+    }
+
+    public List<Tuple2<String, List<LookupInSpec>>> nextSubDocLookupBatch() {
+        List<Tuple2<String, List<LookupInSpec>>> docs = new ArrayList<>();
+        int count = 0;
+        long temp;
+        while (this.has_next_subdoc("lookup") && count<ws.batchSize*ws.subdocs/100) {
+            docs.add(this.nextSubDocLookup());
+            count += 1;
+        }
+        return docs;
+    }
+
+    public List<Tuple2<String, List<MutateInSpec>>> nextSubDocBatch(String op_type) {
+        List<Tuple2<String, List<MutateInSpec>>> docs = new ArrayList<>();
+        int count = 0;
+        long temp;
+        while (this.has_next_subdoc(op_type) && count<ws.batchSize*ws.subdocs/100) {
+            docs.add(this.nextSubDoc(op_type));
             count += 1;
         }
         return docs;
