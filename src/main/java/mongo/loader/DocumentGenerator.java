@@ -124,8 +124,6 @@ abstract class DocGenerator{
 }
 
 public class DocumentGenerator extends DocGenerator{
-    boolean targetvB;
-
     public DocumentGenerator(WorkLoadSettings ws, String keyClass, String valClass) throws ClassNotFoundException {
         super(ws, keyClass, valClass);
     }

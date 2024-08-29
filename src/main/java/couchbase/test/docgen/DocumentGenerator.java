@@ -31,6 +31,7 @@ abstract class KVGenerator{
     protected Method keyMethod;
     protected Method valMethod;
     protected Method iterationsMethod;
+    private int[] target_vbuckets;
 
     public KVGenerator(WorkLoadSettings ws, String keyClass, String valClass) throws ClassNotFoundException {
         super();
@@ -193,8 +194,6 @@ abstract class KVGenerator{
 }
 
 public class DocumentGenerator extends KVGenerator{
-    boolean targetvB;
-
     public DocumentGenerator(WorkLoadSettings ws, String keyClass, String valClass) throws ClassNotFoundException {
         super(ws, keyClass, valClass, 1);
     }

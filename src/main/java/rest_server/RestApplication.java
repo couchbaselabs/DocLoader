@@ -35,6 +35,11 @@ class RestHandlers {
         return new ResponseEntity<>(body, HttpStatus.OK);
     }
 
+    @PostMapping(value="/get_doc_keys")
+    public ResponseEntity<Map<String, Object>> get_doc_keys(@RequestBody TaskRequest taskRequest) {
+        return taskRequest.get_doc_keys();
+    }
+
     @PostMapping(value="/init_task_manager")
     public ResponseEntity<Map<String, Object>> init_task_manager(@RequestBody TaskRequest taskRequest) {
         return taskRequest.init_task_manager();

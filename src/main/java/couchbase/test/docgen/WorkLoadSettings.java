@@ -18,6 +18,7 @@ public class WorkLoadSettings extends WorkLoadBase {
     public int batchSize = ops/workers;
     public int keySize = 15;
     public int docSize = 256;
+    public int[] target_vbuckets;
 
     public int creates = 0;
     public int reads = 0;
@@ -72,7 +73,7 @@ public class WorkLoadSettings extends WorkLoadBase {
         this.valueType = valueType;
         this.keyType = keyType;
     };
-    
+
     public WorkLoadSettings(String keyPrefix,
             int keySize, int docSize, int c, int r, int u, int d, int e,
             int workers, int ops, String loadType,

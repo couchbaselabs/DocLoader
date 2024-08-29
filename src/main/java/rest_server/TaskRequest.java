@@ -30,7 +30,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
-
+import reactor.util.function.Tuple2;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class TaskRequest {
@@ -118,6 +118,8 @@ public class TaskRequest {
     @JsonProperty("value_type")
     private String value_type;
     // Load properties
+    @JsonProperty("target_vbuckets")
+    private int[] target_vbuckets;
     @JsonProperty("timeout")
     private int timeout;
     @JsonProperty("timeout_unit")
@@ -236,6 +238,7 @@ public class TaskRequest {
         System.out.println("doc_ttl: " + doc_ttl);
         System.out.println("doc_ttl_unit: " + doc_ttl_unit);
         System.out.println("durability_level: " + durability_level);
+        System.out.println("target_vbuckets: " + target_vbuckets);
         System.out.println("ops: " + ops);
         System.out.println("gtm: " + gtm);
         System.out.println("process_concurrency: " + process_concurrency);
@@ -273,6 +276,63 @@ public class TaskRequest {
         System.out.println("Shutdown task manager");
         this.task_manager.shutdown();
         this.reset_sdk_client_pool();
+    }
+
+    public ResponseEntity<Map<String, Object>> get_doc_keys() {
+        Map<String, Object> body = new HashMap<>();
+        boolean okay = this.validate_doc_load_params();
+        if (! okay) {
+            body.put("error", "Param validation failed");
+            body.put("keys", null);
+            return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        }
+
+        WorkLoadSettings ws = new WorkLoadSettings(
+            this.key_prefix, this.key_size, this.doc_size,
+            this.create_percent, this.read_percent, this.update_percent,
+            this.delete_percent, this.expiry_percent,
+            this.process_concurrency, this.ops, null,
+            this.key_type, this.value_type,
+            this.validate_docs, this.gtm, this.validate_deleted_docs,
+            this.mutate);
+
+        HashMap<String, Number> dr = new HashMap<String, Number>();
+        dr.put(DRConstants.create_s, this.create_start_index);
+        dr.put(DRConstants.create_e, this.create_end_index);
+        dr.put(DRConstants.read_s, this.read_start_index);
+        dr.put(DRConstants.read_e, this.read_end_index);
+        dr.put(DRConstants.update_s, this.update_start_index);
+        dr.put(DRConstants.update_e, this.update_end_index);
+        dr.put(DRConstants.delete_s, this.delete_start_index);
+        dr.put(DRConstants.delete_e, this.delete_end_index);
+        dr.put(DRConstants.touch_s, this.touch_start_index);
+        dr.put(DRConstants.touch_e, this.touch_end_index);
+        dr.put(DRConstants.replace_s, this.replace_start_index);
+        dr.put(DRConstants.replace_e, this.replace_end_index);
+        dr.put(DRConstants.expiry_s, this.expiry_start_index);
+        dr.put(DRConstants.expiry_e, this.expiry_end_index);
+
+        DocRange range = new DocRange(dr);
+        DocumentGenerator dg = null;
+        ws.dr = range;
+        try {
+            dg = new DocumentGenerator(ws, ws.keyType, ws.valueType, this.iterations);
+        } catch (ClassNotFoundException e) {
+            // e.printStackTrace();
+            body.put("error", "Failed to create doc generator");
+            body.put("message", e.toString());
+            return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        }
+
+        List<String> keys = new ArrayList<String>();
+        List<String> docs = dg.nextDeleteBatch();
+        while (docs.size()>0) {
+            keys.addAll(docs);
+            docs = dg.nextDeleteBatch();
+        }
+        body.put("keys", keys);
+        body.put("status", true);
+        return new ResponseEntity<>(body, HttpStatus.OK);
     }
 
     public ResponseEntity<Map<String, Object>> init_task_manager() {
@@ -330,7 +390,12 @@ public class TaskRequest {
                 optype.getValue().forEach (
                     (failed_result) -> {
                         Map<String, Object> res_obj = new HashMap<String, Object>();
-                        res_obj.put("value", failed_result.document().toString());
+                        if(failed_result.document() == null) {
+                            // Happens when op_type is 'delete'
+                            res_obj.put("value", null);
+                        } else {
+                            res_obj.put("value", failed_result.document().toString());
+                        }
                         res_obj.put("error", failed_result.err().toString());
                         res_obj.put("status", failed_result.status());
                         failures.put(failed_result.id(), res_obj);
