@@ -25,6 +25,7 @@ public class WorkLoadSettings extends WorkLoadBase {
     public int updates = 0;
     public int deletes = 0;
     public int expiry = 0;
+    public int subdocs = 0;
     public int workingSet = 100;
 
     public String loadType;
@@ -37,6 +38,11 @@ public class WorkLoadSettings extends WorkLoadBase {
 
     public DocRange dr;
     public DocumentGenerator doc_gen;
+
+    // Sub-doc specific params
+    public boolean create_path;
+    public boolean is_subdoc_xattr;
+    public boolean is_subdoc_sys_xattr;
 
     /**** Transaction parameters ****/
     public List<List<?>> transaction_pattern;
@@ -132,6 +138,39 @@ public class WorkLoadSettings extends WorkLoadBase {
         // Create DocumentGenerator object
         this.doc_gen = new DocumentGenerator(this, this.keyType, this.valueType);
     }
+
+    /* Constructor to include SubDoc operations */
+    public WorkLoadSettings(String keyPrefix,
+            int keySize, int docSize, int c, int r, int u, int d, int e, int sd,
+            int workers, int ops, String loadType,
+            String keyType, String valueType,
+            boolean validate, boolean gtm, boolean deleted, int mutated,
+            boolean create_path, boolean is_subdoc_xattr, boolean is_subdoc_sys_xattr) {
+        super();
+        this.keyPrefix = keyPrefix;
+        this.keySize = keySize;
+        this.docSize = docSize;
+        this.creates = c;
+        this.reads = r;
+        this.updates = u;
+        this.deletes = d;
+        this.expiry = e;
+        this.subdocs = sd;
+        this.workers = workers;
+        this.ops = ops;
+
+        this.create_path = create_path;
+        this.is_subdoc_xattr = is_subdoc_xattr;
+        this.is_subdoc_sys_xattr = is_subdoc_sys_xattr;
+
+        this.batchSize = this.ops/this.workers;
+        this.gtm = gtm;
+        this.expectDeleted = deleted;
+        this.validate = validate;
+        this.mutated = mutated;
+        this.valueType = valueType;
+        this.keyType = keyType;
+    };
 
     public void setTransactionCommit(Boolean commit_transaction) {
         this.commit_transaction = commit_transaction;
