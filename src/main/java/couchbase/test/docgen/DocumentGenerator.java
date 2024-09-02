@@ -51,7 +51,7 @@ abstract class KVGenerator{
             this.keyMethod = this.keyInstance.getDeclaredMethod("next", long.class);
             this.valMethod = this.valInstance.getDeclaredMethod("next", String.class);
             this.subdocValMethod = this.valInstance.getDeclaredMethod("next", String.class, String.class);
-            this.subdocLookupMethod = this.valInstance.getDeclaredMethod("next_lookup", String.class);
+            this.subdocLookupMethod = this.valInstance.getDeclaredMethod("next_lookup", String.class, String.class);
         } catch (InstantiationException e) {
             e.printStackTrace();
         } catch (IllegalAccessException e) {
@@ -83,6 +83,8 @@ abstract class KVGenerator{
             this.vals = valInstance.getConstructor(WorkLoadSettings.class).newInstance(ws);
             this.keyMethod = this.keyInstance.getDeclaredMethod("next", long.class);
             this.valMethod = this.valInstance.getDeclaredMethod("next", String.class);
+            this.subdocValMethod = this.valInstance.getDeclaredMethod("next", String.class, String.class);
+            this.subdocLookupMethod = this.valInstance.getDeclaredMethod("next_lookup", String.class, String.class);
         } catch (InstantiationException e) {
             e.printStackTrace();
         } catch (IllegalAccessException e) {
