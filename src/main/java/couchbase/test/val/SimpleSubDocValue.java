@@ -225,6 +225,11 @@ public class SimpleSubDocValue {
         return this.next_read_specs(random_obj);
     }
 
+    public List<MutateInSpec> next(String key) {
+        // Dummy method to avoid failures in DocGen expecting similar signature
+        return null;
+    }
+
     public List<MutateInSpec> next(String key, String op_type) {
         Random random_obj = new Random();
         random_obj.setSeed(key.hashCode());
