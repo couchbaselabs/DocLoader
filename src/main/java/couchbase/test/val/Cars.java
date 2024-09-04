@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Random;
 import java.util.List;
@@ -440,6 +441,9 @@ public class Cars {
     public String carDescription = "This is a %s car with %s transmission and manufactured in %d year. " +
             "This car is available in %s color. This car belongs to %s category and has a rating of %d stars";
 
+    private float[] flt_buf;
+    private int flt_buf_length;
+
     public JsonArray hexToRgb(String hexCode) {
         Color color = Color.decode(hexCode);
 
@@ -456,6 +460,14 @@ public class Cars {
         this.random.setSeed(ws.keyPrefix.hashCode());
         faker = new Faker();
         this.setEmbeddingsModel(ws.model);
+
+        this.flt_buf = new float[1024*1024];
+
+        for (int index=0; index<1024*1024; index++) {
+            float x = this.random.nextFloat();
+            this.flt_buf[index] = x;
+        }
+        this.flt_buf_length = this.flt_buf.length;
     }
 
     public ArrayList<String> selectRandomItems(String[] array, int numberOfItems) {
@@ -526,6 +538,12 @@ public class Cars {
     public static String convertToBase64Bytes(float[] floats) {
         return Base64.getEncoder().encodeToString(floatsToBytes(floats));
     }
+
+    private float[] get_float_array(int length, Random random_obj) {
+        int _slice = random_obj.nextInt(this.flt_buf_length - length);
+        return Arrays.copyOfRange(this.flt_buf, _slice, _slice+length);
+    }
+
     public ArrayList<JsonObject> getCarEvaluation(){
         int numReviews = this.random.nextInt(5);
         ArrayList<JsonObject> temp = new ArrayList<>();
@@ -590,6 +608,14 @@ public class Cars {
         return temp;
     }
 
+    public JsonArray generateRGB() {
+        JsonArray colorVector = JsonArray.create();
+        for (int i = 0; i < 3; i++) {
+            colorVector.add(this.random.nextFloat() * 256);
+        }
+        return colorVector;
+    }
+
     public JsonObject next(String key) {
         this.random = new Random();
         JsonObject jsonObject = JsonObject.create();
@@ -641,6 +667,23 @@ public class Cars {
         jsonObject.put("colorRGBVector", colorRGB);
         jsonObject.put("description", description);
         jsonObject.put("evaluation", evaluation);
+
+        if (this.ws.mutated > 0) {
+            float[] vector = null;
+            vector = this.get_float_array(this.ws.dim, this.random);
+            if(this.ws.base64)
+                jsonObject.put("descriptionVector", convertToBase64Bytes(vector));
+            else {
+                JsonArray floatVector = JsonArray.create();
+                for (int i = 0; i < vector.length; i++) {
+                    floatVector.add(Float.valueOf(vector[i]));
+                }
+                jsonObject.put("descriptionVector", floatVector);
+            }
+
+            JsonArray colorRGBVector = generateRGB();
+            jsonObject.put("colorRGBVector", colorRGBVector);
+        }
 
         return jsonObject;
     }
