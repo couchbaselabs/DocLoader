@@ -155,6 +155,14 @@ public class WorkLoadGenerate extends Task{
                 .durability(this.dg.ws.durability)
                 .retryStrategy(this.dg.ws.retryStrategy);
         lookupInOptions = LookupInOptions.lookupInOptions();
+
+        if(dg.ws.expiry == 0) {
+            // If expiry load is not set and we have exp value set,
+            // then apply it for inserts and upserts
+            setOptions = setOptions.expiry(this.dg.ws.getDuration(this.exp, this.exp_unit));
+            upsertOptions = upsertOptions.expiry(this.dg.ws.getDuration(this.exp, this.exp_unit));
+        }
+
         int ops = 0;
         boolean flag = false;
         Instant trackFailureTime_start = Instant.now();
