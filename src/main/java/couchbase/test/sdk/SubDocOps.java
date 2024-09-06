@@ -64,55 +64,59 @@ public class SubDocOps {
                                                                 LookupInOptions lookupInOptions) {
         final ReactiveCollection reactiveCollection = collection.reactive();
         List<HashMap<String, Object>> returnValue = Flux.fromIterable(keys)
-                .flatMap(new Function<Tuple2<String, List<LookupInSpec>>, Publisher<HashMap<String, Object>>>() {
-                    public Publisher<HashMap<String, Object>> apply(Tuple2<String, List<LookupInSpec>> subDocOperations) {
-                        final String id = subDocOperations.getT1();
-                        final List<LookupInSpec> lookUpInSpecs = subDocOperations.getT2();
-                        final HashMap<String, Object> retVal = new HashMap<String, Object>();
-                        retVal.put("id", id);
-                        retVal.put("cas", 0);
-                        retVal.put("content", null);
-                        retVal.put("error", null);
-                        retVal.put("status", false);
-                        return reactiveCollection.lookupIn(id, lookUpInSpecs, lookupInOptions)
-                                .map(new Function<LookupInResult, HashMap<String, Object>>() {
-                                    public HashMap<String, Object> apply(LookupInResult optionalResult) {
-                                            retVal.put("cas", optionalResult.cas());
-                                            List<Object> content = new ArrayList<Object>();
-                                            for (int i=0; i<lookUpInSpecs.size(); i++) {
+            .flatMap(new Function<Tuple2<String, List<LookupInSpec>>, Publisher<HashMap<String, Object>>>() {
+                public Publisher<HashMap<String, Object>> apply(Tuple2<String, List<LookupInSpec>> subDocOperations) {
+                    final String id = subDocOperations.getT1();
+                    final List<LookupInSpec> lookUpInSpecs = subDocOperations.getT2();
+                    final HashMap<String, Object> retVal = new HashMap<String, Object>();
+                    final HashMap<String, Object> sd_result = new HashMap<String, Object>();
+                    retVal.put("id", id);
+                    retVal.put("cas", 0);
+                    retVal.put("value", sd_result);
+                    retVal.put("error", null);
+                    retVal.put("status", true);
+                    return reactiveCollection.lookupIn(id, lookUpInSpecs, lookupInOptions)
+                        .map(new Function<LookupInResult, HashMap<String, Object>>() {
+                            public HashMap<String, Object> apply(LookupInResult optionalResult) {
+                                retVal.put("cas", optionalResult.cas());
+                                List<Object> content = new ArrayList<Object>();
+                                for (int i=0; i<lookUpInSpecs.size(); i++) {
+                                    try {
+                                        // sd_result.put();
+                                        content.add(optionalResult.contentAsObject(i));
+                                    } catch (DecodingFailureException e1) {
+                                        try {
+                                            content.add(optionalResult.contentAsArray(i));
+                                        } catch (DecodingFailureException e2) {
+                                            try {
+                                                content.add(optionalResult.contentAs(i, Integer.class));
+                                            }
+                                            catch (DecodingFailureException e3) {
                                                 try {
-                                                        content.add(optionalResult.contentAsObject(i));
-                                                } catch (DecodingFailureException e1) {
-                                                        try {
-                                                            content.add(optionalResult.contentAsArray(i));
-                                                        } catch (DecodingFailureException e2) {
-                                                            try {
-                                                                content.add(optionalResult.contentAs(i, Integer.class));
-                                                            }
-                                                            catch (DecodingFailureException e3) {
-                                                                try {
-                                                                    content.add(optionalResult.contentAs(i, String.class));
-                                                                } catch (Exception e4) {
-                                                                    content.add(null);
-                                                                }
-                                                            }
-                                                        }
-                                                } catch (PathNotFoundException e1) {
-                                                        content.add("PATH_NOT_FOUND");
+                                                    content.add(optionalResult.contentAs(i, String.class));
+                                                } catch (Exception e4) {
+                                                    content.add(null);
                                                 }
                                             }
-                                            retVal.put("status", true);
-                                            retVal.put("content", content);
-                                        return retVal;
+                                        }
+                                    } catch (PathNotFoundException e1) {
+                                        retVal.put("status", false);
+                                        // Check is to track only the first known error
+                                        if(retVal.get("error") == null)
+                                            retVal.put("error", e1);
                                     }
-                                }).onErrorResume(new Function<Throwable, Mono<HashMap<String, Object>>>() {
-                                    public Mono<HashMap<String, Object>> apply(Throwable error) {
-                                        retVal.put("error", error);
-                                        return Mono.just(retVal);
-                                    }
-                                }).defaultIfEmpty(retVal);
-                    }
-                }).subscribeOn(Schedulers.parallel()).collectList().block();
+                                }
+                                retVal.put("content", content);
+                                return retVal;
+                            }
+                        }).onErrorResume(new Function<Throwable, Mono<HashMap<String, Object>>>() {
+                            public Mono<HashMap<String, Object>> apply(Throwable error) {
+                                retVal.put("error", error);
+                                return Mono.just(retVal);
+                            }
+                        }).defaultIfEmpty(retVal);
+                }
+            }).subscribeOn(Schedulers.parallel()).collectList().block();
         return returnValue;
     }
 }

@@ -50,7 +50,7 @@ abstract class KVGenerator{
             this.keyMethod = this.keyInstance.getDeclaredMethod("next", long.class);
             if (this.valInstance.getSimpleName().equals(SimpleSubDocValue.class.getSimpleName())) {
                 this.valMethod = this.valInstance.getDeclaredMethod("next", String.class, String.class);
-                this.subdocLookupMethod = this.valInstance.getDeclaredMethod("next_lookup", String.class, String.class);
+                this.subdocLookupMethod = this.valInstance.getDeclaredMethod("next_lookup", String.class);
             } else {
                 this.valMethod = this.valInstance.getDeclaredMethod("next", String.class);
             }
@@ -86,7 +86,7 @@ abstract class KVGenerator{
             this.keyMethod = this.keyInstance.getDeclaredMethod("next", long.class);
             if (this.valInstance.getSimpleName().equals(SimpleSubDocValue.class.getSimpleName())) {
                 this.valMethod = this.valInstance.getDeclaredMethod("next", String.class, String.class);
-                this.subdocLookupMethod = this.valInstance.getDeclaredMethod("next_lookup", String.class, String.class);
+                this.subdocLookupMethod = this.valInstance.getDeclaredMethod("next_lookup", String.class);
             } else {
                 this.valMethod = this.valInstance.getDeclaredMethod("next", String.class);
             }
