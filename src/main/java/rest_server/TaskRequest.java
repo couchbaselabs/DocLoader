@@ -264,6 +264,12 @@ public class TaskRequest {
         System.out.println("is_subdoc_sys_xattr: " + is_subdoc_sys_xattr);
         System.out.println("sd_insert_start_index: " + sd_insert_start_index);
         System.out.println("sd_insert_end_index: " + sd_insert_end_index);
+        System.out.println("sd_upsert_start_index: " + sd_upsert_start_index);
+        System.out.println("sd_upsert_end_index: " + sd_upsert_end_index);
+        System.out.println("sd_remove_start_index: " + sd_remove_start_index);
+        System.out.println("sd_remove_end_index: " + sd_remove_end_index);
+        System.out.println("sd_read_start_index: " + sd_read_start_index);
+        System.out.println("sd_read_end_index: " + sd_read_end_index);
         System.out.println("key_prefix: " + key_prefix);
         System.out.println("key_size: " + key_size);
         System.out.println("doc_size: " + doc_size);
@@ -563,17 +569,6 @@ public class TaskRequest {
         }
         body.put("tasks", task_names);
         body.put("status", true);
-        return new ResponseEntity<>(body, HttpStatus.OK);
-    }
-
-    public ResponseEntity<Map<String, Object>> subdoc_load() {
-        Map<String, Object> body = new HashMap<>();
-        body.put("status", true);
-        boolean okay = this.validate_doc_load_params();
-        if (! okay) {
-            body.put("error", "Param validation failed");
-            return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
-        }
         return new ResponseEntity<>(body, HttpStatus.OK);
     }
 }

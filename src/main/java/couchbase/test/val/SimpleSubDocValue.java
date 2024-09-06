@@ -217,7 +217,7 @@ public class SimpleSubDocValue {
         return lookupInSpecs;
     }
 
-    public List<LookupInSpec> next_lookup(String key, String op_type) {
+    public List<LookupInSpec> next_lookup(String key) {
         Random random_obj = new Random();
         random_obj.setSeed(key.hashCode());
         if(this.ws.is_subdoc_sys_xattr)

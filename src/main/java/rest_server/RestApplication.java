@@ -99,18 +99,6 @@ class RestHandlers {
         }
     }
 
-    @PostMapping(value="/subdoc_load")
-    public ResponseEntity<Map<String, Object>> subdoc_load(@RequestBody TaskRequest taskRequest) {
-        try {
-            return taskRequest.subdoc_load();
-        } catch (Exception e) {
-            Map<String, Object> body = new HashMap<>();
-            body.put("error", e.getMessage());
-            body.put("status", false);
-            return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
-        }
-    }
-
     @PostMapping(value="/reset_task_manager")
     public ResponseEntity<Map<String, Object>> reset_task_manager(@RequestBody TaskRequest taskRequest) {
         try {

@@ -62,6 +62,28 @@ public class WorkLoadGenerate extends Task{
     static Logger logger = LogManager.getLogger(WorkLoadGenerate.class);
     private boolean stop_load = false;
 
+    private void update_subdoc_failed_mutation_result(
+            String op_type,
+            HashMap<String, List<Result>> failed_mutations,
+            List<HashMap<String,Object>> sd_results) {
+        if(!trackFailures)
+            return;
+        List<Result> result_arr;
+        if(!failedMutations.containsKey(op_type)) {
+            result_arr = new ArrayList<Result>();
+            failedMutations.put(op_type, result_arr);
+        } else {
+            result_arr = failedMutations.get(op_type);
+        }
+
+        for(HashMap<String, Object> sd_res : sd_results) {
+            result_arr.add(new Result((String)sd_res.get("id"),
+                                      sd_res.get("value"),
+                                      (Throwable)sd_res.get("error"),
+                                      (boolean)sd_res.get("status")));
+        }
+    }
+
     public WorkLoadGenerate(String taskName, DocumentGenerator dg, SDKClient client, String durability) {
         super(taskName);
         this.dg = dg;
@@ -293,6 +315,7 @@ public class WorkLoadGenerate extends Task{
                     flag = true;
                     List<HashMap<String,Object>> result = subDocOps.bulkSubDocOperation(this.sdk.connection, docs, mutateInOptions);
                     ops += dg.ws.batchSize*dg.ws.subdocs/100;
+                    this.update_subdoc_failed_mutation_result("insert", failedMutations, result);
                 }
 
                 docs = dg.nextSubDocBatch("upsert");
@@ -300,6 +323,7 @@ public class WorkLoadGenerate extends Task{
                     flag = true;
                     List<HashMap<String,Object>> result = subDocOps.bulkSubDocOperation(this.sdk.connection, docs, mutateInOptions);
                     ops += dg.ws.batchSize*dg.ws.subdocs/100;
+                    this.update_subdoc_failed_mutation_result("upsert", failedMutations, result);
                 }
 
                 List<Tuple2<String,List<LookupInSpec>>> lookup_docs = dg.nextSubDocLookupBatch();
@@ -307,6 +331,7 @@ public class WorkLoadGenerate extends Task{
                     flag = true;
                     List<HashMap<String,Object>> result = subDocOps.bulkGetSubDocOperation(this.sdk.connection, lookup_docs, lookupInOptions);
                     ops += dg.ws.batchSize*dg.ws.subdocs/100;
+                    this.update_subdoc_failed_mutation_result("lookup", failedMutations, result);
                 }
 
                 docs = dg.nextSubDocBatch("remove");
@@ -314,6 +339,7 @@ public class WorkLoadGenerate extends Task{
                     flag = true;
                     List<HashMap<String,Object>> result = subDocOps.bulkSubDocOperation(this.sdk.connection, docs, mutateInOptions);
                     ops += dg.ws.batchSize*dg.ws.subdocs/100;
+                    this.update_subdoc_failed_mutation_result("remove", failedMutations, result);
                 }
             }
             if(ops == 0)
