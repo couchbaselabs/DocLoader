@@ -107,31 +107,31 @@ public class SimpleSubDocValue {
         int addr_pin_index = random_obj.nextInt(pin_codes.length);
         if(this.ws.is_subdoc_xattr) {
             if(this.ws.create_path) {
-                mutateInSpecs.add(MutateInSpec.insert("full_name.first", "updated_xattr_fname").createPath().xattr());
-                mutateInSpecs.add(MutateInSpec.insert("full_name.last", "updated_xattr_lname").createPath().xattr());
-                mutateInSpecs.add(MutateInSpec.insert("addr.city", "updated_xattr_city").createPath().xattr());
-                mutateInSpecs.add(MutateInSpec.insert("addr.state", "updated_xattr_state").createPath().xattr());
-                mutateInSpecs.add(MutateInSpec.insert("addr.pincode", 0).createPath().xattr());
+                mutateInSpecs.add(MutateInSpec.upsert("full_name.first", "updated_xattr_fname").createPath().xattr());
+                mutateInSpecs.add(MutateInSpec.upsert("full_name.last", "updated_xattr_lname").createPath().xattr());
+                mutateInSpecs.add(MutateInSpec.upsert("addr.city", "updated_xattr_city").createPath().xattr());
+                mutateInSpecs.add(MutateInSpec.upsert("addr.state", "updated_xattr_state").createPath().xattr());
+                mutateInSpecs.add(MutateInSpec.upsert("addr.pincode", 0).createPath().xattr());
             } else {
-                mutateInSpecs.add(MutateInSpec.insert("full_name.first", "updated_xattr_fname").xattr());
-                mutateInSpecs.add(MutateInSpec.insert("full_name.last", "updated_xattr_lname").xattr());
-                mutateInSpecs.add(MutateInSpec.insert("addr.city", "updated_xattr_city").xattr());
-                mutateInSpecs.add(MutateInSpec.insert("addr.state", "updated_xattr_state").xattr());
-                mutateInSpecs.add(MutateInSpec.insert("addr.pincode", 0).xattr());
+                mutateInSpecs.add(MutateInSpec.upsert("full_name.first", "updated_xattr_fname").xattr());
+                mutateInSpecs.add(MutateInSpec.upsert("full_name.last", "updated_xattr_lname").xattr());
+                mutateInSpecs.add(MutateInSpec.upsert("addr.city", "updated_xattr_city").xattr());
+                mutateInSpecs.add(MutateInSpec.upsert("addr.state", "updated_xattr_state").xattr());
+                mutateInSpecs.add(MutateInSpec.upsert("addr.pincode", 0).xattr());
             }
         } else {
             if(this.ws.create_path) {
-                mutateInSpecs.add(MutateInSpec.insert("full_name.first", "updated_xattr_fname").createPath());
-                mutateInSpecs.add(MutateInSpec.insert("full_name.last", "updated_xattr_lname").createPath());
-                mutateInSpecs.add(MutateInSpec.insert("addr.city", "updated_xattr_city").createPath());
-                mutateInSpecs.add(MutateInSpec.insert("addr.state", "updated_xattr_state").createPath());
-                mutateInSpecs.add(MutateInSpec.insert("addr.pincode", 0).createPath());
+                mutateInSpecs.add(MutateInSpec.upsert("full_name.first", "updated_xattr_fname").createPath());
+                mutateInSpecs.add(MutateInSpec.upsert("full_name.last", "updated_xattr_lname").createPath());
+                mutateInSpecs.add(MutateInSpec.upsert("addr.city", "updated_xattr_city").createPath());
+                mutateInSpecs.add(MutateInSpec.upsert("addr.state", "updated_xattr_state").createPath());
+                mutateInSpecs.add(MutateInSpec.upsert("addr.pincode", 0).createPath());
             } else {
-                mutateInSpecs.add(MutateInSpec.insert("full_name.first", "updated_xattr_fname"));
-                mutateInSpecs.add(MutateInSpec.insert("full_name.last", "updated_xattr_lname"));
-                mutateInSpecs.add(MutateInSpec.insert("addr.city", "updated_xattr_city"));
-                mutateInSpecs.add(MutateInSpec.insert("addr.state", "updated_xattr_state"));
-                mutateInSpecs.add(MutateInSpec.insert("addr.pincode", 0));
+                mutateInSpecs.add(MutateInSpec.upsert("full_name.first", "updated_xattr_fname"));
+                mutateInSpecs.add(MutateInSpec.upsert("full_name.last", "updated_xattr_lname"));
+                mutateInSpecs.add(MutateInSpec.upsert("addr.city", "updated_xattr_city"));
+                mutateInSpecs.add(MutateInSpec.upsert("addr.state", "updated_xattr_state"));
+                mutateInSpecs.add(MutateInSpec.upsert("addr.pincode", 0));
             }
             mutateInSpecs.add(MutateInSpec.increment("mutated", 1).createPath());
         }
