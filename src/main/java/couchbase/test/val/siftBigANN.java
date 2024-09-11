@@ -2,16 +2,11 @@ package couchbase.test.val;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Random;
-import java.util.zip.GZIPInputStream;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -19,17 +14,11 @@ import com.github.javafaker.Faker;
 
 import couchbase.test.docgen.WorkLoadSettings;
 
+
 public class siftBigANN {
     Faker faker;
     private Random random;
     public WorkLoadSettings ws;
-//    t1M = {"vector": None, "size": [5, 6, 7, 8, 9, 10], "color": "green", "brand": "Nike", "country": "USA", "category": "Shoes", "type": "Apparel", "avg_review": 1}
-//    t2M = {"vector": None, "size": [6, 7, 8, 9, 10], "color": "green", "brand": "Nike", "country": "USA", "category": "Shoes", "type": "Apparel", "avg_review": 2}
-//    t5M = {"vector": None, "size": [7, 8, 9, 10], "color": "red", "brand": "Nike", "country": "USA", "category": "Shoes", "type": "Apparel", "avg_review": 2.5}
-//    t10M = {"vector": None, "size": [8, 9, 10], "color": "red", "brand": "Adidas", "country": "USA", "category": "Shoes", "type": "Apparel", "avg_review": 3}
-//    t20M = {"vector": None, "size": [9, 10], "color": "red", "brand": "Adidas", "country": "Canada", "category": "Shoes", "type": "Apparel", "avg_review": 3.5}
-//    t50M = {"vector": None, "size": [10], "color": "red", "brand": "Adidas", "country": "Canada", "category": "Jeans", "type": "Apparel", "avg_review": 4}
-//    t100M = {"vector": None, "color": "red", "brand": "Adidas", "country": "Canada", "category": "Jeans", "type": "Denim", "avg_review": 4.5}
     FileInputStream inputStream = null;
     File fh = null;
 	private FileInputStream mutateInputStream = null;
@@ -46,15 +35,15 @@ public class siftBigANN {
             this.inputStream = new FileInputStream(this.ws.baseVectorsFilePath);
             if(this.ws.creates > 0) {
             	this.inputStream.skip(ws.dr.create_s * 132);
-            	mutateCount = this.ws.dr.create_e - this.ws.dr.create_s;
+                this.mutateCount = this.ws.dr.create_e - this.ws.dr.create_s;
             }
             else if(this.ws.updates > 0) {
             	this.inputStream.skip(ws.dr.update_s * 132 + this.ws.mutated * 132);
-            	mutateCount = this.ws.dr.update_e - this.ws.dr.update_s - this.ws.mutated;
+                this.mutateCount = this.ws.dr.update_e - this.ws.dr.update_s - this.ws.mutated;
             	if(this.ws.mutated > 0)
             		this.mutateInputStream  = new FileInputStream(this.ws.baseVectorsFilePath);
             }
-            remainingCount = this.ws.mutated;
+            this.remainingCount = this.ws.mutated;
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -73,62 +62,62 @@ public class siftBigANN {
     public Product1 next(String key) throws IOException {
         int id = Integer.parseInt(key.split("-")[1]) - 1 + this.ws.mutated;
         float[] vector =  new float[128];
-        if(mutateCount > 0) {
+        if(this.mutateCount > 0) {
             byte[] byteArray = new byte[(int) 4];
-            inputStream.read(byteArray);
+            this.inputStream.read(byteArray);
             int dim = ByteBuffer.wrap(byteArray).order(ByteOrder.LITTLE_ENDIAN).getInt();
             if(dim > 128)
                 System.out.println(dim);
             byte[] byteVector = new byte[(int) dim];
-            inputStream.read(byteVector);
+            this.inputStream.read(byteVector);
             int i = 0;
             for (byte b : byteVector) {
                 vector[i++] = (float)Byte.toUnsignedInt(b);
             }
-            mutateCount -= 1;
-        } else if(remainingCount > 0) {
+            this.mutateCount -= 1;
+        } else if(this.remainingCount > 0) {
             byte[] byteArray = new byte[(int) 4];
-            mutateInputStream.read(byteArray);
+            this.mutateInputStream.read(byteArray);
             int dim = ByteBuffer.wrap(byteArray).order(ByteOrder.LITTLE_ENDIAN).getInt();
             if(dim > 128)
                 System.out.println(dim);
             byte[] byteVector = new byte[(int) dim];
-            mutateInputStream.read(byteVector);
+            this.mutateInputStream.read(byteVector);
             int i = 0;
             for (byte b : byteVector) {
                 vector[i++] = (float)Byte.toUnsignedInt(b);
             }
         }
         if(ws.dr.create_s >= 0 && ws.dr.create_e <= 1000000)
-            return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(5, 6, 7, 8, 9, 10)), "green",
-                    "Nike", "USA", "Shoes", "Apparel", 1.0f);
+            return new Product1(id, vector, 5, "Green",
+                    "Nike", "USA", "Shoes", "Casual", 1.0f, this.ws.mutated);
         if(ws.dr.create_s >= 1000000 && ws.dr.create_e <= 2000000)
-            return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(6, 7, 8, 9, 10)), "green",
-                    "Nike", "USA", "Shoes", "Apparel", 1.5f);
+            return new Product1(id, vector, 6, "Green",
+                    "Nike", "USA", "Shoes", "Casual", 1.0f, this.ws.mutated);
         if(ws.dr.create_s >= 2000000 && ws.dr.create_e <= 5000000)
-            return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(6, 7, 8, 9, 10)), "red",
-                    "Nike", "USA", "Shoes", "Apparel", 2.0f);
+            return new Product1(id, vector, 7, "Red",
+                    "Nike", "USA", "Shoes", "Casual", 1.0f, this.ws.mutated);
         if(ws.dr.create_s >= 5000000 && ws.dr.create_e <= 10000000)
-            return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(7, 8, 9, 10)), "red",
-                    "Adidas", "USA", "Shoes", "Apparel", 2.5f);
+            return new Product1(id, vector, 8, "Blue",
+                    "Adidas", "USA", "Shoes", "Casual", 1.0f, this.ws.mutated);
         if(ws.dr.create_s >= 10000000 && ws.dr.create_e <= 20000000)
-            return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(8, 9, 10)), "red",
-                    "Adidas", "Canada", "Shoes", "Apparel", 3.0f);
+            return new Product1(id, vector, 9, "Purple",
+                    "Puma", "Canada", "Shoes", "Casual", 1.0f, this.ws.mutated);
         if(ws.dr.create_s >= 20000000 && ws.dr.create_e <= 50000000)
-            return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(9, 10)), "red",
-                    "Adidas", "Canada", "Jeans", "Apparel", 3.5f);
+            return new Product1(id, vector, 10, "Pink",
+                    "Asics", "Australia", "Jeans", "Casual", 1.0f, this.ws.mutated);
         if(ws.dr.create_s >= 50000000 && ws.dr.create_e <= 100000000)
-            return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(10)), "red",
-                    "Adidas", "Canada", "Jeans", "Denim", 4.0f);
+            return new Product1(id, vector, 11, "Yellow",
+                    "Brook", "England", "Shirt", "Formal", 1.0f, this.ws.mutated);
         if(ws.dr.create_s >= 100000000 && ws.dr.create_e <= 200000000)
-            return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList(10)), "red",
-                    "Adidas", "Canada", "Jeans", "Denim", 4.5f);
+            return new Product1(id, vector, 12, "Brown",
+                    "Hoka", "India", "Shorts", "Sports", 2.0f, this.ws.mutated);
         if(ws.dr.create_s >= 200000000 && ws.dr.create_e <= 500000000)
-            return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList()), "red",
-                    "Adidas", "Canada", "Jeans", "Denim", 5.0f);
+            return new Product1(id, vector, 13, "Magenta",
+                    "New Balance", "Mexico", "Bottoms", "Sneakers", 5.0f, this.ws.mutated);
         if(ws.dr.create_s >= 500000000 && ws.dr.create_e == 1000000000)
-            return new Product1(id, vector, new ArrayList<Integer>(Arrays.asList()), "red",
-                    "Adidas", "Canada", "Jeans", "Denim", 10.0f);
+            return new Product1(id, vector, 14, "Indigo",
+                    "Vans", "France", "Top", "Sandals", 10.0f, this.ws.mutated);
         return null;
     }
     
@@ -139,7 +128,7 @@ public class siftBigANN {
         @JsonProperty
         private float[] embedding;
         @JsonProperty
-        private ArrayList<Integer> size;
+        private int size;
         @JsonProperty
         private String color;
         @JsonProperty
@@ -151,23 +140,26 @@ public class siftBigANN {
         @JsonProperty
         private String type;
         @JsonProperty
-        private Float review;
+        private float review;
+        @JsonProperty
+        private int mutate;
 
         @JsonCreator
         public
         Product1(
-                @JsonProperty("id")int id,
+                @JsonProperty("idx")int id,
                 @JsonProperty("embedding") float[] vector,
-                @JsonProperty("size") ArrayList<Integer> arrayList,
+                @JsonProperty("size") int i,
                 @JsonProperty("color") String color,
                 @JsonProperty("brand") String brand,
                 @JsonProperty("country") String country,
                 @JsonProperty("category") String category,
                 @JsonProperty("type") String type,
-                @JsonProperty("review") float review){
+                @JsonProperty("review") float review,
+                @JsonProperty("mutate") int mutate){
             this.id = id;
             this.embedding = vector;
-            this.size = arrayList;
+            this.size = i;
             this.color = color;
             this.brand = brand;
             this.country = country;
@@ -176,7 +168,27 @@ public class siftBigANN {
             this.review = review;
         }
 
-        public float[] getEmbedding() {
+        public int getId() {
+			return id;
+		}
+
+		public void setId(int id) {
+			this.id = id;
+		}
+
+		public int getMutate() {
+			return mutate;
+		}
+
+		public void setMutate(int mutate) {
+			this.mutate = mutate;
+		}
+
+		public void setReview(float review) {
+			this.review = review;
+		}
+
+		public float[] getEmbedding() {
             return embedding;
         }
 
@@ -184,11 +196,11 @@ public class siftBigANN {
             this.embedding = embedding;
         }
 
-        public ArrayList<Integer> getSize() {
+        public int getSize() {
             return size;
         }
 
-        public void setSize(ArrayList<Integer> size) {
+        public void setSize(int size) {
             this.size = size;
         }
 
@@ -232,7 +244,7 @@ public class siftBigANN {
             this.type = type;
         }
 
-        public Float getReview() {
+        public float getReview() {
             return review;
         }
 

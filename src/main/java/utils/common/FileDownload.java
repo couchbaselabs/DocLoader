@@ -1,9 +1,11 @@
 package utils.common;
 
-import org.apache.commons.io.FileUtils;
-import org.asynchttpclient.*;
-
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -11,11 +13,44 @@ import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.concurrent.ExecutionException;
+import java.util.zip.GZIPInputStream;
+
+import org.apache.commons.io.FileUtils;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+import org.asynchttpclient.AsyncCompletionHandler;
+import org.asynchttpclient.AsyncHttpClient;
+import org.asynchttpclient.Dsl;
+import org.asynchttpclient.HttpResponseBodyPart;
+import org.asynchttpclient.Response;
 
 public class FileDownload {
+	static Logger logger = LogManager.getLogger(FileDownload.class);
+
+	public static void checkDownload(String baseVectorsFilePath, String siftURL) throws IOException {
+        String siftFileName = Paths.get(baseVectorsFilePath, "bigann_base.bvecs").toString();
+        File fh = new File(siftFileName);
+        if(!fh.exists()) {
+            String siftFileNameZip = Paths.get(baseVectorsFilePath, Paths.get(siftURL).getFileName().toString()).toString();
+            if(! new File(siftFileNameZip).exists()) {
+                Files.createDirectories(Paths.get(baseVectorsFilePath));
+                FileDownload.downloadWithJavaIO(siftURL, siftFileNameZip);
+            } else {
+                logger.info(String.format("%s Found!! Unzipping it.", siftFileNameZip));
+            }
+            FileDownload.decompressGzip(
+                    Paths.get(siftFileNameZip),
+                    Paths.get(siftFileName)
+                    );
+            logger.info(String.format("Unzipping %s completed. %s is ready to use.", siftFileNameZip, siftFileName));
+        } else {
+            logger.info(siftFileName + " Found!!");
+        }
+	}
 
     public static void downloadWithJavaIO(String url, String localFilename) {
 
@@ -87,6 +122,22 @@ public class FileDownload {
 
         stream.getChannel().close();
         client.close();
+    }
+    
+    public static void decompressGzip(Path source, Path target) throws IOException {
+
+        try (GZIPInputStream gis = new GZIPInputStream(
+                                      new FileInputStream(source.toFile()));
+             FileOutputStream fos = new FileOutputStream(target.toFile())) {
+
+            // copy GZIPInputStream to FileOutputStream
+            byte[] buffer = new byte[1024];
+            int len;
+            while ((len = gis.read(buffer)) > 0) {
+                fos.write(buffer, 0, len);
+            }
+
+        }
     }
 
 }

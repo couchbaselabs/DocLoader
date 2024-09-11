@@ -184,27 +184,10 @@ public class SIFTLoader {
             System.exit(1);
             return;
         }
-
         String baseVectorsFilePath = cmd.getOptionValue("baseVectorsFilePath", null);
         String siftURL = cmd.getOptionValue("siftURL",null);
+        FileDownload.checkDownload(baseVectorsFilePath, siftURL);
         String siftFileName = Paths.get(baseVectorsFilePath, "bigann_base.bvecs").toString();
-        File fh = new File(siftFileName);
-        if(!fh.exists()) {
-            String siftFileNameZip = Paths.get(baseVectorsFilePath, Paths.get(siftURL).getFileName().toString()).toString();
-            if(! new File(siftFileNameZip).exists()) {
-                Files.createDirectories(Paths.get(baseVectorsFilePath));
-                FileDownload.downloadWithJavaIO(siftURL, siftFileNameZip);
-            } else {
-                logger.info(String.format("%s Found!! Unzipping it.", siftFileNameZip));
-            }
-            SIFTLoader.decompressGzip(
-                    Paths.get(siftFileNameZip),
-                    Paths.get(siftFileName)
-                    );
-            logger.info(String.format("Unzipping %s completed. %s is ready to use.", siftFileNameZip, siftFileName));
-        } else {
-            logger.info(siftFileName + " Found!!");
-        }
 
         Server master = new Server(cmd.getOptionValue("node"), cmd.getOptionValue("port"),
                 cmd.getOptionValue("rest_username"), cmd.getOptionValue("rest_password"), cmd.getOptionValue("port"));
