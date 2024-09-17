@@ -164,7 +164,7 @@ public class SIFTLoader {
 
         Option mutate = new Option("mutate", true, "mutate");
         options.addOption(mutate);
-        
+
         options.addOption(new Option("baseVectorsFilePath", true, "baseVectorsFilePath"));
 
         options.addOption(new Option("siftURL", true, "siftURL"));
@@ -203,14 +203,19 @@ public class SIFTLoader {
         int poolSize = Integer.parseInt(cmd.getOptionValue("workers", "10"));
         int start_offset = 0, end_offset = 0;
         if(Integer.parseInt(cmd.getOptionValue("cr", "0"))>0) {
-	        start_offset = Integer.parseInt(cmd.getOptionValue(DRConstants.create_s, "0"));
-	        end_offset = Integer.parseInt(cmd.getOptionValue(DRConstants.create_e, "0"));
+            start_offset = Integer.parseInt(cmd.getOptionValue(DRConstants.create_s, "0"));
+            end_offset = Integer.parseInt(cmd.getOptionValue(DRConstants.create_e, "0"));
         } else if(Integer.parseInt(cmd.getOptionValue("up", "0"))>0) {
-        	start_offset = Integer.parseInt(cmd.getOptionValue(DRConstants.update_s, "0"));
-	        end_offset = Integer.parseInt(cmd.getOptionValue(DRConstants.update_e, "0"));
+            start_offset = Integer.parseInt(cmd.getOptionValue(DRConstants.update_s, "0"));
+            end_offset = Integer.parseInt(cmd.getOptionValue(DRConstants.update_e, "0"));
         }
-        for (int k = 0; k < steps.length - 1 && end_offset > steps[k]; k++) {
-        	if(steps[k] < start_offset) continue; 
+        int k = 0;
+        while(!(steps[k] <= start_offset && start_offset < steps[k+1]))
+            k += 1;
+        while(steps[k] <= end_offset) {
+            int start = Math.max(start_offset, steps[k]);
+            int end = Math.min(end_offset, steps[k+1]);
+            int step = (end - start)/poolSize;
             for (int i = 0; i < poolSize; i++) {
                 WorkLoadSettings ws = new WorkLoadSettings(cmd.getOptionValue("keyPrefix", "test_docs-"),
                         Integer.parseInt(cmd.getOptionValue("keySize", "20")),
@@ -232,16 +237,13 @@ public class SIFTLoader {
                         cmd.getOptionValue("mutate_field",""),
                         Integer.parseInt(cmd.getOptionValue("mutation_timeout","0")),
                         siftFileName);
-                int step = (steps[k+1] - steps[k])/poolSize;
-                int start = steps[k] + step * i;
-                int end = Math.min(steps[k] + step * (i+1), end_offset);
                 HashMap<String, Number> dr = new HashMap<String, Number>();
-                dr.put(DRConstants.create_s, start);
-                dr.put(DRConstants.create_e, end);
+                dr.put(DRConstants.create_s, start + step * i);
+                dr.put(DRConstants.create_e, start + step * (i+1));
                 dr.put(DRConstants.read_s, Long.parseLong(cmd.getOptionValue(DRConstants.read_s, "0")));
                 dr.put(DRConstants.read_e, Long.parseLong(cmd.getOptionValue(DRConstants.read_e, "0")));
-                dr.put(DRConstants.update_s, Long.parseLong(cmd.getOptionValue(DRConstants.update_s, "0")));
-                dr.put(DRConstants.update_e, Long.parseLong(cmd.getOptionValue(DRConstants.update_e, "0")));
+                dr.put(DRConstants.update_s, start + step * i);
+                dr.put(DRConstants.update_e, start + step * (i+1));
                 dr.put(DRConstants.delete_s, Long.parseLong(cmd.getOptionValue(DRConstants.delete_s, "0")));
                 dr.put(DRConstants.delete_e, Long.parseLong(cmd.getOptionValue(DRConstants.delete_e, "0")));
                 dr.put(DRConstants.touch_s, Long.parseLong(cmd.getOptionValue(DRConstants.touch_s, "0")));
@@ -273,6 +275,7 @@ public class SIFTLoader {
                     e.printStackTrace();
                 }
             }
+            k += 1;
         }
         tm.getAllTaskResult();
         tm.shutdown();
@@ -283,8 +286,8 @@ public class SIFTLoader {
     public static void decompressGzip(Path source, Path target) throws IOException {
 
         try (GZIPInputStream gis = new GZIPInputStream(
-                                      new FileInputStream(source.toFile()));
-             FileOutputStream fos = new FileOutputStream(target.toFile())) {
+                new FileInputStream(source.toFile()));
+                FileOutputStream fos = new FileOutputStream(target.toFile())) {
 
             // copy GZIPInputStream to FileOutputStream
             byte[] buffer = new byte[1024];

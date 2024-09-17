@@ -115,7 +115,7 @@ public class siftBigANN {
         if(ws.dr.create_s >= 200000000 && ws.dr.create_e <= 500000000)
             return new Product1(id, vector, 13, "Magenta",
                     "New Balance", "Mexico", "Bottoms", "Sneakers", 5.0f, this.ws.mutated);
-        if(ws.dr.create_s >= 500000000 && ws.dr.create_e == 1000000000)
+        if(ws.dr.create_s >= 500000000 && ws.dr.create_e <= 1000000000)
             return new Product1(id, vector, 14, "Indigo",
                     "Vans", "France", "Top", "Sandals", 10.0f, this.ws.mutated);
         return null;
