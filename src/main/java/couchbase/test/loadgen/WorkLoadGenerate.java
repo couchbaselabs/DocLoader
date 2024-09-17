@@ -29,6 +29,7 @@ import couchbase.test.docgen.DocumentGenerator;
 import couchbase.test.sdk.DocOps;
 import couchbase.test.sdk.Result;
 import couchbase.test.sdk.SDKClient;
+import couchbase.test.sdk.SDKClientPool;
 import couchbase.test.taskmanager.Task;
 import elasticsearch.EsClient;
 import reactor.util.function.Tuple2;
@@ -50,7 +51,11 @@ public class WorkLoadGenerate extends Task{
     public RemoveOptions removeOptions;
     public GetOptions getOptions;
     public EsClient esClient = null;
+    private SDKClientPool sdkClientPool;
     static Logger logger = LogManager.getLogger(WorkLoadGenerate.class);
+    public String bucket_name;
+    public String scope = "_default";
+    public String collection = "_default";
 
     public WorkLoadGenerate(String taskName, DocumentGenerator dg, SDKClient client, String durability) {
         super(taskName);
@@ -101,6 +106,27 @@ public class WorkLoadGenerate extends Task{
         this.retryStrategy = retryStrategy;
     }
 
+    public WorkLoadGenerate(String taskName, DocumentGenerator dg, SDKClientPool clientPool, EsClient esClient,
+            String durability, int exp, String exp_unit, boolean trackFailures, int retryTimes, String retryStrategy) {
+        super(taskName);
+        this.dg = dg;
+        this.docops = new DocOps();
+        this.sdkClientPool = clientPool;
+        this.esClient = esClient;
+        this.durability = durability;
+        this.trackFailures = trackFailures;
+        this.retryTimes = retryTimes;
+        this.exp = exp;
+        this.exp_unit = exp_unit;
+        this.retryStrategy = retryStrategy;
+    }
+
+    public void set_collection_for_load(String bucket_name, String scope, String collection) {
+        this.bucket_name = bucket_name;
+        this.scope = scope;
+        this.collection = collection;
+    }
+
     @Override
     public void run() {
         logger.info("Starting " + this.taskName);
@@ -134,6 +160,8 @@ public class WorkLoadGenerate extends Task{
         boolean flag = false;
         Instant trackFailureTime_start = Instant.now();
         while(true) {
+            if (this.sdkClientPool != null)
+                this.sdk = this.sdkClientPool.get_client_for_bucket(this.bucket_name, this.scope, this.collection);
             Instant trackFailureTime_end = Instant.now();
             Duration timeElapsed = Duration.between(trackFailureTime_start, trackFailureTime_end);
             if(timeElapsed.toMinutes() > 5) {
@@ -143,10 +171,13 @@ public class WorkLoadGenerate extends Task{
             }
             Instant start = Instant.now();
             if(dg.ws.creates > 0) {
+                Instant st = Instant.now();
                 List<Tuple2<String, Object>> docs = dg.nextInsertBatch();
                 if(this.dg.ws.elastic) {
                     esClient.insertDocs(this.sdk.collection.replace("_", ""), docs);
                 }
+              Instant en = Instant.now();
+              System.out.println(this.taskName + " Time Taken to generate " + docs.size() + "docs: " + Duration.between(st, en).toMillis() + "ms");
                 if (docs.size()>0) {
                     flag = true;
                     List<Result> result = docops.bulkInsert(this.sdk.connection, docs, setOptions);

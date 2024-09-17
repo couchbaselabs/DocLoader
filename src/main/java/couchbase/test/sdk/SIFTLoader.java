@@ -26,6 +26,7 @@ import couchbase.test.docgen.DocRange;
 import couchbase.test.docgen.DocumentGenerator;
 import couchbase.test.docgen.WorkLoadSettings;
 import couchbase.test.loadgen.WorkLoadGenerate;
+import couchbase.test.taskmanager.Task;
 import couchbase.test.taskmanager.TaskManager;
 import utils.common.FileDownload;
 
@@ -194,6 +195,13 @@ public class SIFTLoader {
         TaskManager tm = new TaskManager(Integer.parseInt(cmd.getOptionValue("workers", "10")));
         SDKClient client = new SDKClient(master, cmd.getOptionValue("bucket"), cmd.getOptionValue("scope", "_default"),
                 cmd.getOptionValue("collection", "_default"));
+        SDKClientPool clientPool = new SDKClientPool();
+        try {
+            clientPool.create_clients(cmd.getOptionValue("bucket"), master, 2);
+        } catch (Exception e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
         try {
             client.initialiseSDK();
         } catch (Exception e) {
@@ -212,7 +220,7 @@ public class SIFTLoader {
         int k = 0;
         while(!(steps[k] <= start_offset && start_offset < steps[k+1]))
             k += 1;
-        while(steps[k] <= end_offset) {
+        while(steps[k] < end_offset) {
             int start = Math.max(start_offset, steps[k]);
             int end = Math.min(end_offset, steps[k+1]);
             int step = (end - start)/poolSize;
@@ -266,10 +274,15 @@ public class SIFTLoader {
                     boolean trackFailures = false;
                     if (Integer.parseInt(cmd.getOptionValue("retry", "0")) > 0)
                         trackFailures = true;
-                    tm.submit(new WorkLoadGenerate(th_name, dg, client, null, cmd.getOptionValue("durability", "NONE"),
+                    WorkLoadGenerate wlg = new WorkLoadGenerate(th_name, dg, clientPool, null, cmd.getOptionValue("durability", "NONE"),
                             Integer.parseInt(cmd.getOptionValue("maxTTL", "0")),
                             cmd.getOptionValue("maxTTLUnit", "seconds"), trackFailures,
-                            Integer.parseInt(cmd.getOptionValue("retry", "0")), null));
+                            Integer.parseInt(cmd.getOptionValue("retry", "0")), null);
+                    wlg.set_collection_for_load(
+                            cmd.getOptionValue("bucket"),
+                            cmd.getOptionValue("scope", "_default"),
+                            cmd.getOptionValue("collection", "_default"));
+                    tm.submit(wlg);
                     TimeUnit.MILLISECONDS.sleep(500);
                 } catch (Exception e) {
                     e.printStackTrace();
