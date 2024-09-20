@@ -232,53 +232,35 @@ public class TaskRequest {
     }
 
     private void log_request() {
-        System.out.println("server_ip: " + server_ip);
-        System.out.println("server_port: " + server_port);
-        System.out.println("username: " + username);
-        System.out.println("password: " + password);
-        System.out.println("bucket_name: " + bucket_name);
-        System.out.println("scope_name: " + scope_name);
-        System.out.println("collection_name: " + collection_name);
-        System.out.println("create_percent: " + create_percent);
-        System.out.println("create_start_index: " + create_start_index);
-        System.out.println("create_end_index: " + create_end_index);
-        System.out.println("delete_percent: " + delete_percent);
-        System.out.println("delete_start_index: " + delete_start_index);
-        System.out.println("delete_end_index: " + delete_end_index);
-        System.out.println("update_percent: " + update_percent);
-        System.out.println("update_start_index: " + update_start_index);
-        System.out.println("update_end_index: " + update_end_index);
-        System.out.println("read_percent: " + read_percent);
-        System.out.println("read_start_index: " + read_start_index);
-        System.out.println("read_end_index: " + read_end_index);
-        System.out.println("touch_start_index: " + touch_start_index);
-        System.out.println("touch_end_index: " + touch_end_index);
-        System.out.println("replace_start_index: " + replace_start_index);
-        System.out.println("replace_end_index: " + replace_end_index);
-        System.out.println("expiry_percent: " + expiry_percent);
-        System.out.println("expiry_start_index: " + expiry_start_index);
-        System.out.println("expiry_end_index: " + expiry_end_index);
-        System.out.println("subdoc_percent: " + subdoc_percent);
-        System.out.println("create_path: " + create_path);
-        System.out.println("is_subdoc_xattr: " + is_subdoc_xattr);
-        System.out.println("is_subdoc_sys_xattr: " + is_subdoc_sys_xattr);
-        System.out.println("sd_insert_start_index: " + sd_insert_start_index);
-        System.out.println("sd_insert_end_index: " + sd_insert_end_index);
-        System.out.println("sd_upsert_start_index: " + sd_upsert_start_index);
-        System.out.println("sd_upsert_end_index: " + sd_upsert_end_index);
-        System.out.println("sd_remove_start_index: " + sd_remove_start_index);
-        System.out.println("sd_remove_end_index: " + sd_remove_end_index);
-        System.out.println("sd_read_start_index: " + sd_read_start_index);
-        System.out.println("sd_read_end_index: " + sd_read_end_index);
-        System.out.println("key_prefix: " + key_prefix);
-        System.out.println("key_size: " + key_size);
-        System.out.println("doc_size: " + doc_size);
-        System.out.println("key_type: " + key_type);
-        System.out.println("value_type: " + value_type);
-        System.out.println("timeout: " + timeout);
-        System.out.println("timeout_unit: " + timeout_unit);
-        System.out.println("doc_ttl: " + doc_ttl);
-        System.out.println("doc_ttl_unit: " + doc_ttl_unit);
+        System.out.println("Server: " + server_ip + ":" + server_port);
+        System.out.println("Creds: " + username + " / " + password);
+        System.out.println("Bucket: " + bucket_name + ":" + scope_name + ":" + collection_name);
+        System.out.println("Key Type: " + key_type + ", Size: " + key_size + ", Prefix: '" + key_prefix + "'");
+        System.out.println("Doc Type: " + value_type + ", Size: " + doc_size);
+        System.out.println("---- Percent ----");
+        System.out.println("  Create: " + create_percent);
+        System.out.println("  Update: " + update_percent);
+        System.out.println("  Delete: " + delete_percent);
+        System.out.println("  Read  : " + read_percent);
+        System.out.println("  Expiry: " + expiry_percent);
+        System.out.println("  SubDoc: " + subdoc_percent);
+        System.out.println("---- Indexes ----");
+        System.out.println("creates: (" + create_start_index + ", " + create_end_index + ")");
+        System.out.println("updates: (" + update_start_index + ", " + update_end_index + ")");
+        System.out.println("reads  : (" + read_start_index + ", " + read_end_index + ")");
+        System.out.println("deletes: (" + delete_start_index + ", " + delete_end_index + ")");
+        System.out.println("touch  : (" + touch_start_index + ", " + touch_end_index + ")");
+        System.out.println("replace: (" + replace_start_index + ", " + replace_end_index + ")");
+        System.out.println("expiry : (" + expiry_start_index + ", " + expiry_end_index + ")");
+        System.out.println("sd insert: (" + sd_insert_start_index + ", " + sd_insert_end_index + ")");
+        System.out.println("sd upsert: (" + sd_upsert_start_index + ", " + sd_upsert_end_index + ")");
+        System.out.println("sd lookup: (" + sd_read_start_index + ", " + sd_read_end_index + ")");
+        System.out.println("sd remove: (" + sd_remove_start_index + ", " + sd_remove_end_index + ")");
+        System.out.println("sd is_xattr: " + is_subdoc_xattr);
+        System.out.println("sd is_sys_xattr: " + is_subdoc_sys_xattr);
+        System.out.println("sd create_path: " + create_path);
+        System.out.println("Timeout: " + timeout + ", Unit: " + timeout_unit);
+        System.out.println("doc_ttl: " + doc_ttl + ", Unit: " + doc_ttl_unit);
         System.out.println("durability_level: " + durability_level);
         System.out.println("target_vbuckets: " + target_vbuckets);
         System.out.println("ops: " + ops);
@@ -482,6 +464,7 @@ public class TaskRequest {
     }
 
     public ResponseEntity<Map<String, Object>> doc_load() {
+        this.log_request();
         Map<String, Object> body = new HashMap<>();
         boolean okay = this.validate_doc_load_params();
         if (! okay) {
