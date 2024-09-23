@@ -32,6 +32,7 @@ import com.couchbase.client.java.kv.MutateInSpec;
 
 import couchbase.test.docgen.DocumentGenerator;
 import couchbase.test.sdk.DocOps;
+import couchbase.test.sdk.SDKClientPool;
 import couchbase.test.sdk.SubDocOps;
 import couchbase.test.sdk.Result;
 import couchbase.test.sdk.SDKClient;
@@ -61,6 +62,10 @@ public class WorkLoadGenerate extends Task{
     public EsClient esClient = null;
     static Logger logger = LogManager.getLogger(WorkLoadGenerate.class);
     private boolean stop_load = false;
+    private SDKClientPool sdkClientPool;
+    private String bucket_name;
+    private String scope_name;
+    private String collection_name;
 
     private void update_subdoc_failed_mutation_result(
             String op_type,
@@ -122,7 +127,9 @@ public class WorkLoadGenerate extends Task{
     }
 
     public WorkLoadGenerate(String taskName, DocumentGenerator dg, SDKClient client, EsClient esClient,
-            String durability, int exp, String exp_unit, boolean trackFailures, int retryTimes, String retryStrategy) {
+            String durability, int exp, String exp_unit, boolean trackFailures, int retryTimes, String retryStrategy,
+            SDKClientPool client_pool, String bucket_name, String scope_name,
+            String collection_name) {
         super(taskName);
         this.dg = dg;
         this.docops = new DocOps();
@@ -135,14 +142,19 @@ public class WorkLoadGenerate extends Task{
         this.exp = exp;
         this.exp_unit = exp_unit;
         this.retryStrategy = retryStrategy;
+
+        // Used for SDKClientPool get_client()
+        this.sdkClientPool = client_pool;
+        this.bucket_name = bucket_name;
+        this.scope_name = scope_name;
+        this.collection_name = collection_name;
     }
 
     public void stop_load() {
         this.stop_load = true;
     }
 
-    @Override
-    public void run() {
+    public void actual_run() {
         this.result = true;
         logger.info("Starting " + this.taskName);
         // Set timeout in WorkLoadSettings
@@ -404,6 +416,18 @@ public class WorkLoadGenerate extends Task{
                     }
                 }
             }
+        }
+    }
+
+    @Override
+    public void run() {
+        this.sdk = this.sdkClientPool.get_client_for_bucket(
+            this.bucket_name, this.scope_name, this.collection_name);
+        try {
+            this.actual_run();
+        }
+        finally{
+            this.sdkClientPool.release_client(this.sdk);
         }
     }
 }
