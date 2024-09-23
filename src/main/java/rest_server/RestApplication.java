@@ -87,6 +87,18 @@ class RestHandlers {
         }
     }
 
+    @PostMapping(value="/create_clients")
+    public ResponseEntity<Map<String, Object>> create_clients(@RequestBody TaskRequest taskRequest) {
+        try {
+            return taskRequest.create_clients();
+        } catch (Exception e) {
+            Map<String, Object> body = new HashMap<>();
+            body.put("error", e.toString());
+            body.put("status", false);
+            return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        }
+    }
+
     @PostMapping(value="/doc_load")
     public ResponseEntity<Map<String, Object>> doc_load(@RequestBody TaskRequest taskRequest) {
         try {

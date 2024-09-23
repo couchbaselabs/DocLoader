@@ -93,7 +93,6 @@ public class SDKClientPool {
                     col_hm.put("counter", 1);
                 }
             }
-            break;
         }
         return client;
     }

@@ -45,6 +45,10 @@ public class TaskRequest {
     @JsonProperty("num_workers")
     private int num_workers;
 
+    // Used by SDKClientPool management
+    @JsonProperty("req_clients")
+    private int req_clients;
+
     // Consumed by doc_load()
     // Connection params
     @JsonProperty("server_ip")
@@ -272,6 +276,23 @@ public class TaskRequest {
         System.out.println("mutate: " + mutate);
     }
 
+    public ResponseEntity<Map<String, Object>> create_clients() {
+        Server master = new Server(this.server_ip, this.server_port,
+                                   this.username, this.password,
+                                   this.server_port);
+        Map<String, Object> body = new HashMap<>();
+        try {
+            this.sdk_client_pool.create_clients(this.bucket_name, master,
+                                                this.req_clients);
+            body.put("status", true);
+        }
+        catch(Exception e) {
+            body.put("error", e.toString());
+            body.put("status", false);
+        }
+        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+    }
+
     private void reset_sdk_client_pool() {
         if(this.sdk_client_pool != null)
             this.sdk_client_pool.shutdown();
@@ -472,10 +493,6 @@ public class TaskRequest {
             return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
         }
 
-        Server master = new Server(this.server_ip, this.server_port,
-                                   this.username, this.password,
-                                   this.server_port);
-
         WorkLoadSettings ws = new WorkLoadSettings(
             this.key_prefix, this.key_size, this.doc_size,
             this.create_percent, this.read_percent, this.update_percent,
@@ -510,7 +527,6 @@ public class TaskRequest {
         dr.put(DRConstants.subdoc_read_s, this.sd_read_start_index);
         dr.put(DRConstants.subdoc_read_e, this.sd_read_end_index);
 
-        SDKClient client;
         DocRange range = new DocRange(dr);
         DocumentGenerator dg = null;
 
@@ -523,22 +539,6 @@ public class TaskRequest {
             body.put("message", e.toString());
             return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
         }
-        try {
-            int retry_left = 5;
-            client = this.sdk_client_pool.get_client_for_bucket(
-                this.bucket_name, this.scope_name, this.collection_name);
-            while ((client == null) && (retry_left >= 0)) {
-                this.sdk_client_pool.create_clients(this.bucket_name, master, 1);
-                client = this.sdk_client_pool.get_client_for_bucket(
-                    this.bucket_name, this.scope_name, this.collection_name);
-                retry_left -= 1;
-            }
-        } catch (Exception e) {
-            // e.printStackTrace();
-            body.put("error", "Failed to initialize SDKClient");
-            body.put("message", e.toString());
-            return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
-        }
         boolean trackFailures = true;
         ArrayList task_names = new ArrayList<String>();
         String task_name = "Task_" + this.task_id.incrementAndGet();
@@ -546,8 +546,10 @@ public class TaskRequest {
         for (int i = 0; i < ws.workers; i++) {
             String th_name = task_name + "_" + i;
             this.loader_tasks.put(th_name, new WorkLoadGenerate(
-                th_name, dg, client, null, this.durability_level,
-                this.doc_ttl, this.doc_ttl_unit, trackFailures, retry, null));
+                th_name, dg, null, null, this.durability_level,
+                this.doc_ttl, this.doc_ttl_unit, trackFailures, retry, null,
+                this.sdk_client_pool, this.bucket_name, this.scope_name,
+                this.collection_name));
             task_names.add(th_name);
         }
         body.put("tasks", task_names);

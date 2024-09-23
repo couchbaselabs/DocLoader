@@ -160,7 +160,7 @@ public class Loader {
 
         Option esPwd = new Option("esPwd", "elastic", true, "ElasticSearch password");
         options.addOption(esPwd);
-        
+
         Option esAPIKey = new Option("esAPIKey", "elastic", true, "ElasticSearch APIKey");
         options.addOption(esAPIKey);
 
@@ -272,7 +272,7 @@ public class Loader {
                 tm.submit(new WorkLoadGenerate(th_name, dg, client, esClient, cmd.getOptionValue("durability", "NONE"),
                         Integer.parseInt(cmd.getOptionValue("maxTTL", "0")),
                         cmd.getOptionValue("maxTTLUnit", "seconds"), trackFailures,
-                        Integer.parseInt(cmd.getOptionValue("retry", "0")), null));
+                        Integer.parseInt(cmd.getOptionValue("retry", "0")), null, null, null, null, null));
                 TimeUnit.MILLISECONDS.sleep(500);
             } catch (Exception e) {
                 e.printStackTrace();
@@ -282,7 +282,7 @@ public class Loader {
         tm.shutdown();
         client.disconnectCluster();
         client.shutdownEnv();
-        
+
         if (ws.elastic) {
             try {
                 esClient.restClient.close();
