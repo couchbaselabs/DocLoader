@@ -30,13 +30,12 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.ElasticsearchException;
 import co.elastic.clients.elasticsearch.core.BulkRequest.Builder;
 import co.elastic.clients.elasticsearch.core.BulkResponse;
-import co.elastic.clients.elasticsearch.core.SearchRequest;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
-import couchbase.test.val.Vector.Product1;
 import jakarta.json.JsonObject;
 import reactor.util.function.Tuple2;
+
 
 public class EsClient {
 	String serverUrl = "http://localhost:9200";
@@ -45,6 +44,7 @@ public class EsClient {
 	String pwd = null;
 	public RestClient restClient;
 	public ElasticsearchClient esClient;
+	public String indexName;
 
 	public EsClient(String serverUrl, String apiKey) {
 		super();
@@ -94,8 +94,9 @@ public class EsClient {
 		return deleteResponse;
 	}
 
-	public Response createESIndex(String indexName, JsonObject indexMapping) {
+	public Response createESIndex(String indexName, String similarity, JsonObject indexMapping) {
 		//create an Index with indexName
+		this.indexName = indexName;
 		Request createIndex = new Request("PUT", "/" + indexName);
 		try {
 			restClient.performRequest(createIndex);
@@ -104,17 +105,21 @@ public class EsClient {
 		}
 
 		String endpoint = "/" + indexName + "/_mapping";
+		/*
+		 * { "id": 1, "size": 5, "color": "Green", "brand": "Nike", "country": "USA",
+		 * "category": "Shoes", "type": "Casual", "review": 1, "mutate": 0 }
+		 */
 		String jsonString = "{\n" +
 				"  \"properties\": {\n" +
 				"    \"embedding\": {\n" +
 				"      \"type\": \"dense_vector\",\n" +
-				"      \"similarity\": \"l2_norm\",\n" +
-				"      \"dims\": 384\n" +
+				String.format("      \"similarity\": \"%s\",\n", similarity) +
+				"      \"dims\": 128\n" +
 				"    },\n" +
-				"    \"productID\": {\n" +
+				"    \"id\": {\n" +
 				"      \"type\": \"text\"\n" +
 				"    },\n" +
-				"    \"productDescription\": {\n" +
+				"    \"color\": {\n" +
 				"      \"type\": \"text\",\n" +
 				"      \"fields\": {\n" +
 				"        \"keyword\": {\n" +
@@ -125,7 +130,6 @@ public class EsClient {
 				"    }\n" +
 				"  }\n" +
 				"}";
-
 
 		HttpEntity entity = new NStringEntity(jsonString, ContentType.APPLICATION_JSON);
 

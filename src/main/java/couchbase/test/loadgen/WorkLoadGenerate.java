@@ -2,6 +2,7 @@ package couchbase.test.loadgen;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +37,7 @@ import reactor.util.function.Tuple2;
 
 public class WorkLoadGenerate extends Task{
     DocumentGenerator dg;
-    public SDKClient sdk;
+    public SDKClient sdk = null;
     public DocOps docops;
     public String durability;
     public HashMap<String, List<Result>> failedMutations = new HashMap<String, List<Result>>();
@@ -173,14 +174,16 @@ public class WorkLoadGenerate extends Task{
             if(dg.ws.creates > 0) {
                 Instant st = Instant.now();
                 List<Tuple2<String, Object>> docs = dg.nextInsertBatch();
-                if(this.dg.ws.elastic) {
-                    esClient.insertDocs(this.sdk.collection.replace("_", ""), docs);
-                }
               Instant en = Instant.now();
               System.out.println(this.taskName + " Time Taken to generate " + docs.size() + "docs: " + Duration.between(st, en).toMillis() + "ms");
                 if (docs.size()>0) {
                     flag = true;
-                    List<Result> result = docops.bulkInsert(this.sdk.connection, docs, setOptions);
+                    if(this.dg.ws.elastic) {
+                        this.esClient.insertDocs(this.esClient.indexName.replace("_", ""), docs);
+                    }
+                    List<Result> result = new ArrayList<Result>();
+                    if(this.sdk != null)
+                        result = docops.bulkInsert(this.sdk.connection, docs, setOptions);
                     ops += dg.ws.batchSize*dg.ws.creates/100;
                     if(trackFailures && result.size()>0)
                         try {
@@ -194,10 +197,12 @@ public class WorkLoadGenerate extends Task{
                 List<Tuple2<String, Object>> docs = dg.nextUpdateBatch();
                 if (docs.size()>0) {
                     flag = true;
-                    List<Result> result = docops.bulkUpsert(this.sdk.connection, docs, upsertOptions);
                     if(this.dg.ws.elastic) {
-                        esClient.insertDocs(this.sdk.collection.replace("_", ""), docs);
+                        this.esClient.insertDocs(this.esClient.indexName.replace("_", ""), docs);
                     }
+                    List<Result> result = new ArrayList<Result>();
+                    if(this.sdk != null)
+                        result = docops.bulkUpsert(this.sdk.connection, docs, upsertOptions);
                     ops += dg.ws.batchSize*dg.ws.updates/100;
                     if(trackFailures && result.size()>0)
                         try {
@@ -211,7 +216,9 @@ public class WorkLoadGenerate extends Task{
                 List<Tuple2<String, Object>> docs = dg.nextExpiryBatch();
                 if (docs.size()>0) {
                     flag = true;
-                    List<Result> result = docops.bulkInsert(this.sdk.connection, docs, expiryOptions);
+                    List<Result> result = new ArrayList<Result>();
+                    if(this.sdk != null)
+                        result = docops.bulkInsert(this.sdk.connection, docs, expiryOptions);
                     ops += dg.ws.batchSize*dg.ws.expiry/100;
                     if(trackFailures && result.size()>0)
                         try {
@@ -225,9 +232,11 @@ public class WorkLoadGenerate extends Task{
                 List<String> docs = dg.nextDeleteBatch();
                 if (docs.size()>0) {
                     flag = true;
-                    List<Result> result = docops.bulkDelete(this.sdk.connection, docs, removeOptions);
+                    List<Result> result = new ArrayList<Result>();
+                    if(this.sdk != null)
+                        result = docops.bulkDelete(this.sdk.connection, docs, removeOptions);
                     if(this.dg.ws.elastic) {
-                        esClient.deleteDocs(this.sdk.collection.replace("_", ""), docs);
+                        this.esClient.deleteDocs(this.esClient.indexName.replace("_", ""), docs);
                     }
                     ops += dg.ws.batchSize*dg.ws.deletes/100;
                     if(trackFailures && result.size()>0)

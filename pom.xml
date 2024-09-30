@@ -36,11 +36,6 @@
 			<version>3.4.10</version>
 		</dependency>
 		<dependency>
-			<groupId>com.fasterxml.jackson.core</groupId>
-			<artifactId>jackson-databind</artifactId>
-			<version>2.12.3</version>
-		</dependency>
-		<dependency>
 			<groupId>com.couchbase.client</groupId>
 			<artifactId>couchbase-transactions</artifactId>
 			<version>1.2.2</version>
@@ -97,10 +92,11 @@
 			<artifactId>aws-java-sdk-core</artifactId>
 			<version>1.8.10.2</version>
 		</dependency>
+		<!-- https://mvnrepository.com/artifact/org.apache.httpcomponents/httpclient -->
 		<dependency>
-			<groupId>org.asynchttpclient</groupId>
-			<artifactId>async-http-client</artifactId>
-			<version>${async-http-client.version}</version>
+		    <groupId>org.apache.httpcomponents</groupId>
+		    <artifactId>httpclient</artifactId>
+		    <version>4.5.13</version>
 		</dependency>
 	</dependencies>
 	<build>

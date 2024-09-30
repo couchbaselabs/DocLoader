@@ -16,17 +16,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.concurrent.ExecutionException;
 import java.util.zip.GZIPInputStream;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
-import org.asynchttpclient.AsyncCompletionHandler;
-import org.asynchttpclient.AsyncHttpClient;
-import org.asynchttpclient.Dsl;
-import org.asynchttpclient.HttpResponseBodyPart;
-import org.asynchttpclient.Response;
 
 public class FileDownload {
 	static Logger logger = LogManager.getLogger(FileDownload.class);
@@ -98,32 +92,6 @@ public class FileDownload {
 
     }
 
-    public static void downloadWithAHC(String url, String localFilename) throws ExecutionException, InterruptedException, IOException {
-
-        FileOutputStream stream = new FileOutputStream(localFilename);
-        AsyncHttpClient client = Dsl.asyncHttpClient();
-
-        client.prepareGet(url)
-            .execute(new AsyncCompletionHandler<FileOutputStream>() {
-
-                @Override
-                public State onBodyPartReceived(HttpResponseBodyPart bodyPart) throws Exception {
-                    stream.getChannel()
-                        .write(bodyPart.getBodyByteBuffer());
-                    return State.CONTINUE;
-                }
-
-                @Override
-                public FileOutputStream onCompleted(Response response) throws Exception {
-                    return stream;
-                }
-            })
-            .get();
-
-        stream.getChannel().close();
-        client.close();
-    }
-    
     public static void decompressGzip(Path source, Path target) throws IOException {
 
         try (GZIPInputStream gis = new GZIPInputStream(

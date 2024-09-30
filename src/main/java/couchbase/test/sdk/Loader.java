@@ -164,6 +164,9 @@ public class Loader {
         Option esAPIKey = new Option("esAPIKey", "elastic", true, "ElasticSearch APIKey");
         options.addOption(esAPIKey);
 
+        Option esSimilarity = new Option("esSimilarity", "elastic", true, "ElasticSearch esSimilarity");
+        options.addOption(esSimilarity);
+
         Option model = new Option("model", "model", true, "Vector Model");
         options.addOption(model);
 
@@ -265,10 +268,10 @@ public class Loader {
         EsClient esClient = null;
         if (ws.elastic) {
             if (cmd.getOptionValue(esAPIKey.getOpt()) != null)
-                esClient = new EsClient(esServer.getValue("http://localhost:9200"), cmd.getOptionValue(esAPIKey.getOpt()));
+                esClient = new EsClient(cmd.getOptionValue(esServer.getOpt()), cmd.getOptionValue(esAPIKey.getOpt()));
             esClient.initializeSDK();
             esClient.deleteESIndex(cmd.getOptionValue("collection", "_default").replace("_", ""));
-            esClient.createESIndex(cmd.getOptionValue("collection", "_default").replace("_", ""), null);
+            esClient.createESIndex(cmd.getOptionValue("collection", "_default").replace("_", ""), cmd.getOptionValue(esSimilarity.getOpt(), "l2_norm"), null);
         }
         try {
             client.initialiseSDK();

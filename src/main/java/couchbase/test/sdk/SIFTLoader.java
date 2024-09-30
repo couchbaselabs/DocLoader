@@ -28,6 +28,7 @@ import couchbase.test.docgen.WorkLoadSettings;
 import couchbase.test.loadgen.WorkLoadGenerate;
 import couchbase.test.taskmanager.Task;
 import couchbase.test.taskmanager.TaskManager;
+import elasticsearch.EsClient;
 import utils.common.FileDownload;
 
 public class SIFTLoader {
@@ -173,6 +174,27 @@ public class SIFTLoader {
         Option retry = new Option("retry", true, "Retry failures n times");
         options.addOption(retry);
 
+        Option elastic = new Option("elastic", "elastic", true, "Flag to insert data in ElasticSearch cluster");
+        options.addOption(elastic);
+
+        Option esServer = new Option("esServer", "elastic", true, "ElasticSearch cluster");
+        options.addOption(esServer);
+
+        Option esUser = new Option("esUser", "elastic", true, "ElasticSearch user");
+        options.addOption(esUser);
+
+        Option esPwd = new Option("esPwd", "elastic", true, "ElasticSearch password");
+        options.addOption(esPwd);
+
+        Option esAPIKey = new Option("esAPIKey", "elastic", true, "ElasticSearch APIKey");
+        options.addOption(esAPIKey);
+
+        Option esSimilarity = new Option("esSimilarity", "elastic", true, "ElasticSearch esSimilarity");
+        options.addOption(esSimilarity);
+
+        Option skipCB = new Option("skipCB", "skipCB", true, "Skip loading data into Couchbase");
+        options.addOption(skipCB);
+
         HelpFormatter formatter = new HelpFormatter();
         CommandLineParser parser = new DefaultParser();
         CommandLine cmd;
@@ -196,17 +218,34 @@ public class SIFTLoader {
         SDKClient client = new SDKClient(master, cmd.getOptionValue("bucket"), cmd.getOptionValue("scope", "_default"),
                 cmd.getOptionValue("collection", "_default"));
         SDKClientPool clientPool = new SDKClientPool();
-        try {
-            clientPool.create_clients(cmd.getOptionValue("bucket"), master, 2);
-        } catch (Exception e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
+        String cb = cmd.getOptionValue(skipCB.getOpt(), "false");
+        if (!Boolean.parseBoolean(cb)) {
+            try {
+                clientPool.create_clients(cmd.getOptionValue("bucket"), master, 2);
+            } catch (Exception e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+            try {
+                client.initialiseSDK();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        EsClient esClient = null;
+        if (Boolean.parseBoolean(cmd.getOptionValue("elastic", "false"))) {
+            if (cmd.getOptionValue(esAPIKey.getOpt()) != null)
+                esClient = new EsClient(cmd.getOptionValue(esServer.getOpt()), cmd.getOptionValue(esAPIKey.getOpt()));
+            esClient.initializeSDK();
+            esClient.deleteESIndex(cmd.getOptionValue("collection", "_default").replace("_", ""));
+            esClient.createESIndex(cmd.getOptionValue("collection", "_default").replace("_", ""), cmd.getOptionValue(esSimilarity.getOpt(), "l2_norm"), null);
         }
         try {
             client.initialiseSDK();
         } catch (Exception e) {
             e.printStackTrace();
         }
+
         int[] steps = new int[] {0, 1000000, 2000000, 5000000, 10000000, 20000000, 50000000, 100000000, 200000000, 500000000, 1000000000};
         int poolSize = Integer.parseInt(cmd.getOptionValue("workers", "10"));
         int start_offset = 0, end_offset = 0;
@@ -274,7 +313,7 @@ public class SIFTLoader {
                     boolean trackFailures = false;
                     if (Integer.parseInt(cmd.getOptionValue("retry", "0")) > 0)
                         trackFailures = true;
-                    WorkLoadGenerate wlg = new WorkLoadGenerate(th_name, dg, clientPool, null, cmd.getOptionValue("durability", "NONE"),
+                    WorkLoadGenerate wlg = new WorkLoadGenerate(th_name, dg, clientPool, esClient, cmd.getOptionValue("durability", "NONE"),
                             Integer.parseInt(cmd.getOptionValue("maxTTL", "0")),
                             cmd.getOptionValue("maxTTLUnit", "seconds"), trackFailures,
                             Integer.parseInt(cmd.getOptionValue("retry", "0")), null);
