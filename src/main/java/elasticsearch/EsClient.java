@@ -1,6 +1,9 @@
 package elasticsearch;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -45,6 +48,7 @@ public class EsClient {
 	public RestClient restClient;
 	public ElasticsearchClient esClient;
 	public String indexName;
+	public ElasticsearchTransport transport;
 
 	public EsClient(String serverUrl, String apiKey) {
 		super();
@@ -74,7 +78,7 @@ public class EsClient {
 				.build();
 
 		// Create the transport with a Jackson mapper
-		ElasticsearchTransport transport = new RestClientTransport(
+		this.transport = new RestClientTransport(
 				restClient, new JacksonJsonpMapper());
 
 		// And create the API client
@@ -94,7 +98,7 @@ public class EsClient {
 		return deleteResponse;
 	}
 
-	public Response createESIndex(String indexName, String similarity, JsonObject indexMapping) {
+	public Response createESIndex(String indexName, String similarity, JsonObject indexMapping) throws IOException {
 		//create an Index with indexName
 		this.indexName = indexName;
 		Request createIndex = new Request("PUT", "/" + indexName);
@@ -105,33 +109,23 @@ public class EsClient {
 		}
 
 		String endpoint = "/" + indexName + "/_mapping";
-		/*
-		 * { "id": 1, "size": 5, "color": "Green", "brand": "Nike", "country": "USA",
-		 * "category": "Shoes", "type": "Casual", "review": 1, "mutate": 0 }
-		 */
-		String jsonString = "{\n" +
-				"  \"properties\": {\n" +
-				"    \"embedding\": {\n" +
-				"      \"type\": \"dense_vector\",\n" +
-				String.format("      \"similarity\": \"%s\",\n", similarity) +
-				"      \"dims\": 128\n" +
-				"    },\n" +
-				"    \"id\": {\n" +
-				"      \"type\": \"text\"\n" +
-				"    },\n" +
-				"    \"color\": {\n" +
-				"      \"type\": \"text\",\n" +
-				"      \"fields\": {\n" +
-				"        \"keyword\": {\n" +
-				"          \"type\": \"keyword\",\n" +
-				"          \"ignore_above\": 256\n" +
-				"        }\n" +
-				"      }\n" +
-				"    }\n" +
-				"  }\n" +
-				"}";
+		File f = new File("src/main/java/couchbase/test/val/ESSiftIndex.json");
+		String esIndex = null;
+        if (f.exists()){
+            InputStream is;
+			try {
+				is = new FileInputStream("src/main/java/couchbase/test/val/ESSiftIndex.json");
+				byte[] data = new byte[(int) f.length()];
+				is.read(data);
+				is.close();
 
-		HttpEntity entity = new NStringEntity(jsonString, ContentType.APPLICATION_JSON);
+				esIndex = new String(data, "UTF-8");
+				System.out.println(esIndex);
+			} catch (FileNotFoundException e) {
+				e.printStackTrace();
+			}
+        }
+		HttpEntity entity = new NStringEntity(esIndex, ContentType.APPLICATION_JSON);
 
 		Request request = new Request("PUT", endpoint);
 		request.setEntity(entity);

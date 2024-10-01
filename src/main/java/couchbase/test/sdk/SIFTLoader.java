@@ -215,8 +215,6 @@ public class SIFTLoader {
         Server master = new Server(cmd.getOptionValue("node"), cmd.getOptionValue("port"),
                 cmd.getOptionValue("rest_username"), cmd.getOptionValue("rest_password"), cmd.getOptionValue("port"));
         TaskManager tm = new TaskManager(Integer.parseInt(cmd.getOptionValue("workers", "10")));
-        SDKClient client = new SDKClient(master, cmd.getOptionValue("bucket"), cmd.getOptionValue("scope", "_default"),
-                cmd.getOptionValue("collection", "_default"));
         SDKClientPool clientPool = new SDKClientPool();
         String cb = cmd.getOptionValue(skipCB.getOpt(), "false");
         if (!Boolean.parseBoolean(cb)) {
@@ -224,11 +222,6 @@ public class SIFTLoader {
                 clientPool.create_clients(cmd.getOptionValue("bucket"), master, 2);
             } catch (Exception e) {
                 // TODO Auto-generated catch block
-                e.printStackTrace();
-            }
-            try {
-                client.initialiseSDK();
-            } catch (Exception e) {
                 e.printStackTrace();
             }
         }
@@ -326,8 +319,8 @@ public class SIFTLoader {
         }
         tm.getAllTaskResult();
         tm.shutdown();
-        client.disconnectCluster();
-        client.shutdownEnv();
+        if(esClient != null)
+            esClient.transport.close();
     }
 
     public static void decompressGzip(Path source, Path target) throws IOException {

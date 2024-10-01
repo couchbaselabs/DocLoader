@@ -172,10 +172,10 @@ public class WorkLoadGenerate extends Task{
             }
             Instant start = Instant.now();
             if(dg.ws.creates > 0) {
-                Instant st = Instant.now();
+                // Instant st = Instant.now();
                 List<Tuple2<String, Object>> docs = dg.nextInsertBatch();
-              Instant en = Instant.now();
-              System.out.println(this.taskName + " Time Taken to generate " + docs.size() + "docs: " + Duration.between(st, en).toMillis() + "ms");
+                // Instant en = Instant.now();
+                // System.out.println(this.taskName + " Time Taken to generate " + docs.size() + "docs: " + Duration.between(st, en).toMillis() + "ms");
                 if (docs.size()>0) {
                     flag = true;
                     if(this.dg.ws.elastic) {
