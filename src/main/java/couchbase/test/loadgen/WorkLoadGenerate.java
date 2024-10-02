@@ -179,7 +179,7 @@ public class WorkLoadGenerate extends Task{
                 if (docs.size()>0) {
                     flag = true;
                     if(this.dg.ws.elastic) {
-                        this.esClient.insertDocs(this.esClient.indexName.replace("_", ""), docs);
+                        this.esClient.insertDocs(this.collection.replace("_", ""), docs);
                     }
                     List<Result> result = new ArrayList<Result>();
                     if(this.sdk != null)
@@ -198,7 +198,7 @@ public class WorkLoadGenerate extends Task{
                 if (docs.size()>0) {
                     flag = true;
                     if(this.dg.ws.elastic) {
-                        this.esClient.insertDocs(this.esClient.indexName.replace("_", ""), docs);
+                        this.esClient.insertDocs(this.collection.replace("_", ""), docs);
                     }
                     List<Result> result = new ArrayList<Result>();
                     if(this.sdk != null)
@@ -236,7 +236,7 @@ public class WorkLoadGenerate extends Task{
                     if(this.sdk != null)
                         result = docops.bulkDelete(this.sdk.connection, docs, removeOptions);
                     if(this.dg.ws.elastic) {
-                        this.esClient.deleteDocs(this.esClient.indexName.replace("_", ""), docs);
+                        this.esClient.deleteDocs(this.collection.replace("_", ""), docs);
                     }
                     ops += dg.ws.batchSize*dg.ws.deletes/100;
                     if(trackFailures && result.size()>0)

@@ -181,20 +181,22 @@ public class EsClient {
 	}
 
 	public String performKNNSearch(String indexName,
-			String vectorField, float[] fs, int k) throws Exception {
+			String vectorField, float[] fs, int k, String key, Object val) throws Exception {
 		String endpoint = "/" + indexName + "/_search";
 
 		Map<String, Object> knnQuery = new HashMap<String, Object>();
-		knnQuery.put("field", vectorField);
-		knnQuery.put("k", k);
-		knnQuery.put("num_candidates", k);
-		knnQuery.put("query_vector", fs);
+		knnQuery.put("field", "embedding");
+		knnQuery.put("k", 50);
+		knnQuery.put("num_candidates", 50);
+		knnQuery.put("query_vector", fs );
 
+		Map<String, Object> scalar = new HashMap<String, Object>();
+		scalar.put("term", new HashMap<String, Object>() {{ put(key, val);}});
+		knnQuery.put("filter", scalar);
 		Map<String, Object> requestPayload = new HashMap<>();
 		requestPayload.put("knn", knnQuery);
-//		Map<String, Object> excludes = new HashMap<String, Object>();
-//		excludes.put("exclude", new String[] {"embedding"});
-		requestPayload.put("_source", new ArrayList<String>(Arrays.asList("productID", "productDescription")));
+		requestPayload.put("size", 100);
+		requestPayload.put("_source", new ArrayList<String>(Arrays.asList("id", "size")));
 
 		//Serialize the request payload as JSON
 		ObjectMapper objectMapper = new ObjectMapper();
@@ -209,9 +211,9 @@ public class EsClient {
 		Response result = restClient.performRequest(request);
 		InputStream inputStream = result.getEntity().getContent();
 		String text = new BufferedReader(
-			      new InputStreamReader(inputStream, StandardCharsets.UTF_8))
-			        .lines()
-			        .collect(Collectors.joining("\n"));
+				new InputStreamReader(inputStream, StandardCharsets.UTF_8))
+				.lines()
+				.collect(Collectors.joining("\n"));
 		return text;
 	}
 }
