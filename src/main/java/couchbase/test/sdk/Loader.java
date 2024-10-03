@@ -27,7 +27,7 @@ public class Loader {
     static final String default_scope = "_default";
     static final String default_collection = "_default";
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
 
         logger.info("#################### Starting Java Based Doc-Loader ####################");
 
