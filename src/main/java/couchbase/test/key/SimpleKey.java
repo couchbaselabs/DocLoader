@@ -1,6 +1,9 @@
 package couchbase.test.key;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.zip.CRC32;
+
 import couchbase.test.docgen.WorkLoadSettings;
 
 public class SimpleKey {
@@ -9,10 +12,15 @@ public class SimpleKey {
             + "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
     String alphabet = "";
     public int key_counter = 0;
+
     private static int total_vbs = 1024;
 
     public SimpleKey() {
         super();
+    }
+
+    public void set_total_vbs(int num_vbs) {
+        this.total_vbs = num_vbs;
     }
 
     public static boolean contains(int[] array, int target) {
@@ -37,5 +45,29 @@ public class SimpleKey {
         int counterSize = Long.toString(Math.abs(doc_index)).length();
         int padd = this.ws.keySize - this.ws.keyPrefix.length() - counterSize;
         return this.ws.keyPrefix + this.padding.substring(0, padd) + Math.abs(doc_index);
+    }
+
+    public Map<Long, String> generate_keys_for_target_vbs(Long doc_index, Long num_keys, int[] target_vbs) {
+        int keys_generated = 0;
+        Integer vb_of_key;
+        long key_index = doc_index;
+        String key;
+        Map<Long, String> generated_keys = new HashMap<Long, String>();
+
+        while(keys_generated < num_keys) {
+            key = this.next(key_index);
+            key_index ++;
+
+            vb_of_key = this.get_vbucket_for_key(key);
+            for (int vb_num : target_vbs) {
+                if (vb_num == vb_of_key) {
+                    generated_keys.put(doc_index, key);
+                    doc_index ++;
+                    keys_generated ++;
+                    break;
+                }
+            }
+        }
+        return generated_keys;
     }
 }
