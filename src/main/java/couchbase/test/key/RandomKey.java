@@ -1,6 +1,8 @@
 package couchbase.test.key;
 
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Random;
 
 import couchbase.test.docgen.WorkLoadSettings;
@@ -16,6 +18,14 @@ public class RandomKey extends SimpleKey{
     static final char[] key_chars = (upper + lower + digits).toCharArray();
     String randomString = null;
     int randomStringLength = 0;
+
+    public void set_total_vbs(int num_vbs) {
+        super.set_total_vbs(num_vbs);
+    }
+
+    public Map<Long, String> generate_keys_for_target_vbs(Long doc_index, Long num_keys, int[] target_vbs) {
+        return super.generate_keys_for_target_vbs(doc_index, num_keys, target_vbs);
+    }
 
     public RandomKey() {
         super();
@@ -38,16 +48,8 @@ public class RandomKey extends SimpleKey{
         Random random_obj = new Random();
         random_obj.setSeed(doc_index);
         String counter = Long.toString(doc_index);
-        String doc_key = this.get_random_string(
+        return this.get_random_string(
             ws.keySize - counter.length()-1, random_obj) + "-" +counter;
-        if (this.ws.target_vbuckets != null) {
-            while (! this.contains(this.ws.target_vbuckets,
-                                   this.get_vbucket_for_key(doc_key))) {
-                 doc_key = this.get_random_string(
-                    ws.keySize - counter.length()-1, random_obj) + "-" +counter;
-            }
-        }
-        return doc_key;
     }
 
     public String get_random_string(int length, Random random_obj) {

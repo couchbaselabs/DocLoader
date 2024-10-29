@@ -3,7 +3,9 @@ package couchbase.test.docgen;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import couchbase.test.key.CircularKey;
@@ -36,7 +38,16 @@ abstract class KVGenerator{
     protected Method valMethod;
     protected Method subdocLookupMethod;
     protected Method iterationsMethod;
-    private int[] target_vbuckets;
+    // Total number of vbuckets to be considered for this load
+    protected static int num_vbuckets = 1024;
+    // List of target vbuckets to be considered for this load
+    protected int[] target_vbuckets;
+
+    protected Map<Long, String> generated_create_keys = new HashMap<Long, String>();
+    protected Map<Long, String> generated_update_keys = new HashMap<Long, String>();
+    protected Map<Long, String> generated_read_keys = new HashMap<Long, String>();
+    protected Map<Long, String> generated_delete_keys = new HashMap<Long, String>();
+    protected Map<Long, String> generated_expiry_keys = new HashMap<Long, String>();
 
     public KVGenerator(WorkLoadSettings ws, String keyClass, String valClass) throws ClassNotFoundException {
         super();
@@ -133,6 +144,31 @@ abstract class KVGenerator{
             this.valInstance = SimpleSubDocValue.class;
         else
             this.valInstance = SimpleValue.class;
+    }
+
+    public void set_vbuckets_config(int num_vbuckets, int[] target_vbuckets) throws NoSuchMethodException, IllegalAccessException, InvocationTargetException {
+        this.num_vbuckets = num_vbuckets;
+        this.target_vbuckets = target_vbuckets;
+        Method set_total_vbs_func = this.keyInstance.getDeclaredMethod("set_total_vbs", int.class);
+        set_total_vbs_func.invoke(this.keys, num_vbuckets);
+    }
+
+    public void generate_keys_for_target_vbs() throws NoSuchMethodException, IllegalAccessException, InvocationTargetException {
+        Method genKeysForTargetVBsFunc = this.keyInstance.getDeclaredMethod(
+            "generate_keys_for_target_vbs", Long.class, Long.class, int[].class);
+
+        if (target_vbuckets != null && target_vbuckets.length > 0) {
+            generated_create_keys = (Map<Long, String>)genKeysForTargetVBsFunc.invoke(
+                this.keys, this.ws.dr.create_s, this.ws.dr.create_e, this.target_vbuckets);
+            generated_update_keys = (Map<Long, String>)genKeysForTargetVBsFunc.invoke(
+                this.keys, this.ws.dr.update_s, this.ws.dr.update_e, this.target_vbuckets);
+            generated_read_keys = (Map<Long, String>)genKeysForTargetVBsFunc.invoke(
+                this.keys, this.ws.dr.read_s, this.ws.dr.read_e, this.target_vbuckets);
+            generated_delete_keys = (Map<Long, String>)genKeysForTargetVBsFunc.invoke(
+                this.keys, this.ws.dr.delete_s, this.ws.dr.delete_e, this.target_vbuckets);
+            generated_expiry_keys = (Map<Long, String>)genKeysForTargetVBsFunc.invoke(
+                this.keys, this.ws.dr.expiry_s, this.ws.dr.expiry_e, this.target_vbuckets);
+        }
     }
 
     public boolean has_next_create() {
@@ -261,6 +297,19 @@ public class DocumentGenerator extends KVGenerator{
         super(ws, keyClass, valClass, iterations);
     }
 
+    public DocumentGenerator(WorkLoadSettings ws, String keyClass,
+                             String valClass, int iterations, int num_vbuckets,
+                             int[] target_vbuckets) throws ClassNotFoundException {
+        super(ws, keyClass, valClass, iterations);
+        try {
+            this.set_vbuckets_config(num_vbuckets, target_vbuckets);
+            this.generate_keys_for_target_vbs();
+        }
+        catch(NoSuchMethodException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+            e.printStackTrace();
+        }
+    }
+
     public WorkLoadSettings get_work_load_settings() {
         return this.ws;
     }
@@ -270,7 +319,11 @@ public class DocumentGenerator extends KVGenerator{
         String k = null;
         Object v = null;
             try {
-                k = (String) this.keyMethod.invoke(this.keys, temp);
+                if (this.target_vbuckets != null && this.target_vbuckets.length > 0) {
+                    k = this.generated_create_keys.get(temp-1);
+                } else {
+                    k = (String) this.keyMethod.invoke(this.keys, temp);
+                }
                 v = (Object) this.valMethod.invoke(this.vals, k);
             } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
                 e1.printStackTrace();
@@ -283,7 +336,11 @@ public class DocumentGenerator extends KVGenerator{
         String k = null;
         Object v = null;
             try {
-                k = (String) this.keyMethod.invoke(this.keys, temp);
+                if (this.target_vbuckets != null && this.target_vbuckets.length > 0) {
+                    k = this.generated_read_keys.get(temp-1);
+                } else {
+                    k = (String) this.keyMethod.invoke(this.keys, temp);
+                }
                 v = (Object) this.valMethod.invoke(this.vals, k);
             } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
                 e1.printStackTrace();
@@ -296,7 +353,11 @@ public class DocumentGenerator extends KVGenerator{
         String k = null;
         Object v = null;
             try {
-                k = (String) this.keyMethod.invoke(this.keys, temp);
+                if (this.target_vbuckets != null && this.target_vbuckets.length > 0) {
+                    k = this.generated_update_keys.get(temp-1);
+                } else {
+                    k = (String) this.keyMethod.invoke(this.keys, temp);
+                }
                 v = (Object) this.valMethod.invoke(this.vals, k);
             } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
                 e1.printStackTrace();
@@ -309,7 +370,11 @@ public class DocumentGenerator extends KVGenerator{
         String k = null;
         Object v = null;
             try {
-                k = (String) this.keyMethod.invoke(this.keys, temp);
+                if (this.target_vbuckets != null && this.target_vbuckets.length > 0) {
+                    k = this.generated_expiry_keys.get(temp-1);
+                } else {
+                    k = (String) this.keyMethod.invoke(this.keys, temp);
+                }
                 v = (Object) this.valMethod.invoke(this.vals, k);
             } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
                 e1.printStackTrace();
@@ -407,7 +472,11 @@ public class DocumentGenerator extends KVGenerator{
         while (this.has_next_delete() && count<ws.batchSize*ws.deletes/100) {
             try {
                 temp = this.ws.dr.deleteItr.incrementAndGet();
-                docs.add((String) this.keyMethod.invoke(this.keys, temp));
+                if (this.target_vbuckets != null && this.target_vbuckets.length > 0) {
+                    docs.add(this.generated_delete_keys.get(temp-1));
+                } else {
+                    docs.add((String) this.keyMethod.invoke(this.keys, temp));
+                }
             } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
                 e.printStackTrace();
             }

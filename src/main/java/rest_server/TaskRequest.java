@@ -151,6 +151,8 @@ public class TaskRequest {
     @JsonProperty("value_type")
     private String value_type;
     // Load properties
+    @JsonProperty("num_vbuckets")
+    private int num_vbuckets;
     @JsonProperty("target_vbuckets")
     private int[] target_vbuckets;
     @JsonProperty("timeout")
@@ -266,7 +268,7 @@ public class TaskRequest {
         System.out.println("Timeout: " + timeout + ", Unit: " + timeout_unit);
         System.out.println("doc_ttl: " + doc_ttl + ", Unit: " + doc_ttl_unit);
         System.out.println("durability_level: " + durability_level);
-        System.out.println("target_vbuckets: " + target_vbuckets);
+        System.out.println("Total vbuckets: " + num_vbuckets + ", target_vbuckets: " + target_vbuckets);
         System.out.println("ops: " + ops);
         System.out.println("gtm: " + gtm);
         System.out.println("process_concurrency: " + process_concurrency);
@@ -361,7 +363,8 @@ public class TaskRequest {
         DocumentGenerator dg = null;
         ws.dr = range;
         try {
-            dg = new DocumentGenerator(ws, ws.keyType, ws.valueType, this.iterations);
+            dg = new DocumentGenerator(ws, ws.keyType, ws.valueType, this.iterations,
+                                       this.num_vbuckets, this.target_vbuckets);
         } catch (ClassNotFoundException e) {
             // e.printStackTrace();
             body.put("error", "Failed to create doc generator");
@@ -532,7 +535,8 @@ public class TaskRequest {
 
         ws.dr = range;
         try {
-            dg = new DocumentGenerator(ws, ws.keyType, ws.valueType, this.iterations);
+            dg = new DocumentGenerator(ws, ws.keyType, ws.valueType, this.iterations,
+                                       this.num_vbuckets, this.target_vbuckets);
         } catch (Exception e) {
             // e.printStackTrace();
             body.put("error", "Failed to create doc generator");
