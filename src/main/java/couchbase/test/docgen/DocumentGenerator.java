@@ -168,6 +168,14 @@ abstract class KVGenerator{
                 this.keys, this.ws.dr.delete_s, this.ws.dr.delete_e, this.target_vbuckets);
             generated_expiry_keys = (Map<Long, String>)genKeysForTargetVBsFunc.invoke(
                 this.keys, this.ws.dr.expiry_s, this.ws.dr.expiry_e, this.target_vbuckets);
+
+            // Because we create '*_e' as 'n' keys,
+            // hence update '*_e' var to track the iteration during next()
+            this.ws.dr.create_e = this.ws.dr.create_s + this.ws.dr.create_e;
+            this.ws.dr.update_e = this.ws.dr.update_s + this.ws.dr.update_e;
+            this.ws.dr.read_e = this.ws.dr.read_s + this.ws.dr.read_e;
+            this.ws.dr.delete_e = this.ws.dr.delete_s + this.ws.dr.delete_e;
+            this.ws.dr.expiry_e = this.ws.dr.expiry_s + this.ws.dr.expiry_e;
         }
     }
 
