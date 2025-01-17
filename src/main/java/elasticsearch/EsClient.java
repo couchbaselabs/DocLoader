@@ -210,10 +210,11 @@ public class EsClient {
 
 		Response result = restClient.performRequest(request);
 		InputStream inputStream = result.getEntity().getContent();
-		String text = new BufferedReader(
-				new InputStreamReader(inputStream, StandardCharsets.UTF_8))
-				.lines()
-				.collect(Collectors.joining("\n"));
+		String text;
+		try (BufferedReader reader = new BufferedReader(
+				new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+			text = reader.lines().collect(Collectors.joining("\n"));
+		}
 		return text;
 	}
 }
