@@ -166,7 +166,7 @@
 						<manifest>
 							<addClasspath>true</addClasspath>
 							<classpathPrefix>lib/</classpathPrefix>
-							<mainClass>couchbase.test.sdk.Loader</mainClass>
+							<mainClass>Loader</mainClass>
 						</manifest>
 						<manifestEntries>
 							<Class-Path>.</Class-Path>
