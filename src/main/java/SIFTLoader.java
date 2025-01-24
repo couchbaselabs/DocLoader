@@ -228,9 +228,11 @@ public class SIFTLoader {
         if (Boolean.parseBoolean(cmd.getOptionValue("elastic", "false"))) {
             if (cmd.getOptionValue(esAPIKey.getOpt()) != null)
                 esClient = new EsClient(cmd.getOptionValue(esServer.getOpt()), cmd.getOptionValue(esAPIKey.getOpt()));
-            esClient.initializeSDK();
-            esClient.deleteESIndex(cmd.getOptionValue("collection", "_default").replace("_", ""));
-            esClient.createESIndex(cmd.getOptionValue("collection", "_default").replace("_", ""), cmd.getOptionValue(esSimilarity.getOpt(), "l2_norm"), null);
+            if (esClient != null) {
+                esClient.initializeSDK();
+                esClient.deleteESIndex(cmd.getOptionValue("collection", "_default").replace("_", ""));
+                esClient.createESIndex(cmd.getOptionValue("collection", "_default").replace("_", ""), cmd.getOptionValue(esSimilarity.getOpt(), "l2_norm"), null);
+            }
         }
 
         int[] steps = new int[] {0, 1000000, 2000000, 5000000, 10000000, 20000000, 50000000, 100000000, 200000000, 500000000, 1000000000};

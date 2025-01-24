@@ -269,12 +269,14 @@ public class Loader {
                 cmd.getOptionValue("collection", "_default"));
         EsClient esClient = null;
         if (ws.elastic) {
-            if (cmd.getOptionValue(esAPIKey.getOpt()) != null)
+            if (cmd.getOptionValue(esAPIKey.getOpt()) != null){
                 esClient = new EsClient(cmd.getOptionValue(esServer.getOpt()), cmd.getOptionValue(esAPIKey.getOpt()));
-            esClient.initializeSDK();
-            esClient.deleteESIndex(cmd.getOptionValue("collection", "_default").replace("_", ""));
-            esClient.createESIndex(cmd.getOptionValue("collection", "_default").replace("_", ""), cmd.getOptionValue(esSimilarity.getOpt(), "l2_norm"), null);
+                esClient.initializeSDK();
+                esClient.deleteESIndex(cmd.getOptionValue("collection", "_default").replace("_", ""));
+                esClient.createESIndex(cmd.getOptionValue("collection", "_default").replace("_", ""), cmd.getOptionValue(esSimilarity.getOpt(), "l2_norm"), null);
+            }
         }
+
         try {
             client.initialiseSDK();
         } catch (Exception e) {
@@ -299,7 +301,7 @@ public class Loader {
         tm.shutdown();
         client.disconnectCluster();
         client.shutdownEnv();
-        if (ws.elastic) {
+        if (ws.elastic && esClient != null) {
             try {
                 esClient.restClient.close();
             } catch (IOException e) {

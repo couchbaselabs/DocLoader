@@ -54,6 +54,7 @@ public class WorkLoadGenerate extends Task{
     public EsClient esClient = null;
     private SDKClientPool sdkClientPool;
     static Logger logger = LogManager.getLogger(WorkLoadGenerate.class);
+    public boolean stop_load = false;
     public String bucket_name;
     public String scope = "_default";
     public String collection = "_default";
@@ -160,7 +161,7 @@ public class WorkLoadGenerate extends Task{
         int ops = 0;
         boolean flag = false;
         Instant trackFailureTime_start = Instant.now();
-        while(true) {
+        while(this.stop_load == false) {
             if (this.sdkClientPool != null)
                 this.sdk = this.sdkClientPool.get_client_for_bucket(this.bucket_name, this.scope, this.collection);
             Instant trackFailureTime_end = Instant.now();
@@ -343,5 +344,9 @@ public class WorkLoadGenerate extends Task{
                     }
                 }
             }
+    }
+
+    public void stop_load() {
+       this.stop_load = true;
     }
 }
