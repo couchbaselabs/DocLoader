@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 
-import couchbase.dictionary.Dictionary;
 import utils.docgen.WorkLoadSettings;
 import utils.docgen.DocType.Attributes;
 import utils.docgen.DocType.Details;

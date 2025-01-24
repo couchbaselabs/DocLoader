@@ -1,4 +1,4 @@
-package couchbase.dictionary;
+package utils.val;
 
 import java.util.Arrays;
 import java.util.List;
