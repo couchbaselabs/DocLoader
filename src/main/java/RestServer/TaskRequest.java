@@ -668,10 +668,8 @@ public class TaskRequest {
                 }
 
                 boolean trackFailures = true;
-
                 String task_name = "Task_" + TaskRequest.task_id.incrementAndGet() + k + "_" + ws.dr.create_s + "_"
                         + ws.dr.create_e;
-                ;
                 int retry = 0;
                 String th_name = task_name + "_" + i;
                 WorkLoadGenerate wlg = new WorkLoadGenerate(th_name, dg, TaskRequest.SDKClientPool, esClient,
@@ -679,7 +677,6 @@ public class TaskRequest {
                         this.docTTL, this.docTTLUnit, trackFailures, retry, null);
                 wlg.set_collection_for_load(this.bucketName, this.scopeName, this.collectionName);
                 TaskRequest.loader_tasks.put(th_name, wlg);
-
                 task_names.add(th_name);
             }
         }
