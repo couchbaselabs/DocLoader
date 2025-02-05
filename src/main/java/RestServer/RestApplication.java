@@ -108,6 +108,30 @@ class RestHandlers {
         }
     }
 
+    @PostMapping(value="/check_sift_file")
+    public ResponseEntity<Map<String, Object>> check_sift_file(@RequestBody TaskRequest taskRequest) {
+        try {
+            return taskRequest.check_sift_file();
+        } catch (Exception e) {
+            Map<String, Object> body = new HashMap<>();
+            body.put("error", e.toString());
+            body.put("status", false);
+            return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @PostMapping(value="/sift_doc_load")
+    public ResponseEntity<Map<String, Object>> sift_doc_load(@RequestBody TaskRequest taskRequest) {
+        try {
+            return taskRequest.loadSIFTDataset();
+        } catch (Exception e) {
+            Map<String, Object> body = new HashMap<>();
+            body.put("error", e.toString());
+            body.put("status", false);
+            return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        }
+    }
+
     @PostMapping(value="/reset_task_manager")
     public ResponseEntity<Map<String, Object>> reset_task_manager(@RequestBody TaskRequest taskRequest) {
         try {

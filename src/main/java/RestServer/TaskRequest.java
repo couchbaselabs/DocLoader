@@ -1,5 +1,6 @@
 package RestServer;
 
+import utils.common.FileDownload;
 import utils.docgen.DRConstants;
 import utils.docgen.DocRange;
 import utils.docgen.DocumentGenerator;
@@ -12,6 +13,12 @@ import couchbase.sdk.Result;
 import utils.taskmanager.TaskManager;
 import utils.taskmanager.Task;
 
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.ParseException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -20,6 +27,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.HashMap;
@@ -32,7 +40,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class TaskRequest {
     static TaskManager taskManager;
     static AtomicInteger task_id = new AtomicInteger();
-    static SDKClientPool SDKClientPool;
+    static SDKClientPool SDKClientPool = new SDKClientPool();
     static ArrayList<Server> known_servers = new ArrayList<Server>();
     static Object lock_obj = new Object();
     static private ConcurrentHashMap<String, WorkLoadGenerate> loader_tasks = new ConcurrentHashMap<String, WorkLoadGenerate>();
@@ -190,7 +198,7 @@ public class TaskRequest {
     @JsonProperty("model")
     private String model;
     @JsonProperty("mock_vector")
-    private Boolean mockVector;
+    private boolean mockVector;
     @JsonProperty("dim")
     private int dim;
     @JsonProperty("base64")
@@ -199,6 +207,10 @@ public class TaskRequest {
     private String mutateField;
     @JsonProperty("mutation_timeout")
     private int mutationTimeout;
+    @JsonProperty("base_vectors_file_path")
+    private String baseVectorsFilePath;
+    @JsonProperty("sift_url")
+    private String siftURL;
 
     // Used by add_new_task(), get_task_result(), stop_task(), cancel_task()
     @JsonProperty("task_id")
@@ -211,10 +223,7 @@ public class TaskRequest {
      */
 
     private boolean validate_doc_load_params() {
-        if ((this.serverIP == null)
-                || (this.username == null)
-                || (this.password == null)
-                || (this.bucketName == null))
+        if (this.bucketName == null)
             return false;
 
         if (this.createPercent
@@ -296,6 +305,21 @@ public class TaskRequest {
         System.out.println("validate_docs: " + validateDocs);
         System.out.println("validate_deleted_docs: " + validateDeletedDocs);
         System.out.println("mutate: " + mutate);
+        System.out.println("load_type: " + loadType);
+        System.out.println("transaction_patterns: " + transactionPatterns);
+        System.out.println("elastic: " + elastic);
+        System.out.println("es_server: " + esServer);
+        System.out.println("es_api_key: " + esAPIKey);
+        System.out.println("es_similarity: " + esSimilarity);
+        System.out.println("model: " + model);
+        System.out.println("mock_vector: " + mockVector);
+        System.out.println("dim: " + dim);
+        System.out.println("base64: " + base64);
+        System.out.println("mutate_field: " + mutateField);
+        System.out.println("mutation_timeout: " + mutationTimeout);
+        System.out.println("base_vectors_file_path: " + baseVectorsFilePath);
+        System.out.println("sift_url: " + siftURL);
+
     }
 
     public ResponseEntity<Map<String, Object>> create_clients() {
@@ -585,7 +609,7 @@ public class TaskRequest {
         return new ResponseEntity<>(body, HttpStatus.OK);
     }
 
-    public ResponseEntity<Map<String, Object>> loadSIFTDataset() {
+    public ResponseEntity<Map<String, Object>> loadSIFTDataset() throws IOException {
         this.log_request();
         Map<String, Object> body = new HashMap<>();
         boolean okay = this.validate_doc_load_params();
@@ -593,18 +617,20 @@ public class TaskRequest {
             body.put("error", "Param validation failed");
             return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
         }
+        String siftFileName = Paths.get(this.baseVectorsFilePath, "bigann_base.bvecs").toString();
+        // Check if the file exists
+        FileDownload.checkDownload(this.baseVectorsFilePath, this.siftURL);
+
         EsClient esClient = null;
-        if (this.elastic) {
-            if (this.esAPIKey != null) {
-                esClient = new EsClient(this.esServer, this.esAPIKey);
-                esClient.initializeSDK();
-                esClient.deleteESIndex(this.collectionName.replace("_", ""));
-                try {
-                    esClient.createESIndex(this.collectionName.replace("_", ""),
-                            this.esSimilarity, null);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+        if (this.elastic && this.esServer != null && this.esAPIKey != null) {
+            esClient = new EsClient(this.esServer, this.esAPIKey);
+            esClient.initializeSDK();
+            esClient.deleteESIndex(this.collectionName.replace("_", ""));
+            try {
+                esClient.createESIndex(this.collectionName.replace("_", ""),
+                        this.esSimilarity, null);
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         }
 
@@ -619,6 +645,7 @@ public class TaskRequest {
             start_offset = this.updateStartIndex;
             end_offset = this.updateEndIndex;
         }
+
         ArrayList<String> task_names = new ArrayList<String>();
         int k = 0;
         while (!(steps[k] <= start_offset && start_offset < steps[k + 1]))
@@ -636,7 +663,7 @@ public class TaskRequest {
                         this.validateDocs, this.gtm, this.validateDeletedDocs, this.mutate,
                         this.elastic, this.model, this.mockVector,
                         this.dim, this.base64, this.mutateField,
-                        this.mutationTimeout);
+                        this.mutationTimeout, siftFileName);
 
                 HashMap<String, Number> dr = new HashMap<String, Number>();
                 dr.put(DRConstants.create_s, start + step * i);
@@ -679,9 +706,19 @@ public class TaskRequest {
                 TaskRequest.loader_tasks.put(th_name, wlg);
                 task_names.add(th_name);
             }
+            k += 1;
         }
 
         body.put("tasks", task_names);
+        body.put("status", true);
+        return new ResponseEntity<>(body, HttpStatus.OK);
+    }
+
+    public ResponseEntity<Map<String, Object>> check_sift_file() throws IOException {
+        FileDownload.checkDownload(this.baseVectorsFilePath, this.siftURL);
+        String siftFileName = Paths.get(this.baseVectorsFilePath, "bigann_base.bvecs").toString();
+        Map<String, Object> body = new HashMap<>();
+        body.put("file_path", siftFileName);
         body.put("status", true);
         return new ResponseEntity<>(body, HttpStatus.OK);
     }
