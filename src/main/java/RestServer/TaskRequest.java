@@ -619,6 +619,7 @@ public class TaskRequest {
             start_offset = this.updateStartIndex;
             end_offset = this.updateEndIndex;
         }
+
         ArrayList<String> task_names = new ArrayList<String>();
         int k = 0;
         while (!(steps[k] <= start_offset && start_offset < steps[k + 1]))
