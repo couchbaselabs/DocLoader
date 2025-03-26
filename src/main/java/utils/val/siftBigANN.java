@@ -42,6 +42,9 @@ public class siftBigANN {
                 this.mutateCount = this.ws.dr.update_e - this.ws.dr.update_s - this.ws.mutated;
                 if(this.ws.mutated > 0)
                     this.mutateInputStream  = new FileInputStream(this.ws.baseVectorsFilePath);
+            } else if(this.ws.expiry > 0) {
+                this.inputStream.skip(ws.dr.expiry_s * 132);
+                this.mutateCount = this.ws.dr.expiry_e - this.ws.dr.expiry_s;
             }
             this.remainingCount = this.ws.mutated;
         } catch (IOException e) {

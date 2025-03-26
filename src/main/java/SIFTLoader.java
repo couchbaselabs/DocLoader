@@ -166,6 +166,12 @@ public class SIFTLoader {
         Option mutate = new Option("mutate", true, "mutate");
         options.addOption(mutate);
 
+        Option maxTTL = new Option("maxTTL", true, "Expiry Time");
+        options.addOption(maxTTL);
+
+        Option maxTTLUnit = new Option("maxTTLUnit", true, "Expiry Time unit");
+        options.addOption(maxTTLUnit);
+
         options.addOption(new Option("baseVectorsFilePath", true, "baseVectorsFilePath"));
 
         options.addOption(new Option("siftURL", true, "siftURL"));
@@ -244,6 +250,9 @@ public class SIFTLoader {
         } else if(Integer.parseInt(cmd.getOptionValue("up", "0"))>0) {
             start_offset = Integer.parseInt(cmd.getOptionValue(DRConstants.update_s, "0"));
             end_offset = Integer.parseInt(cmd.getOptionValue(DRConstants.update_e, "0"));
+        } else if(Integer.parseInt(cmd.getOptionValue("ex", "0"))>0) {
+            start_offset = Integer.parseInt(cmd.getOptionValue(DRConstants.expiry_s, "0"));
+            end_offset = Integer.parseInt(cmd.getOptionValue(DRConstants.expiry_e, "0"));
         }
         int k = 0;
         while(!(steps[k] <= start_offset && start_offset < steps[k+1]))
@@ -286,8 +295,8 @@ public class SIFTLoader {
                 dr.put(DRConstants.touch_e, Long.parseLong(cmd.getOptionValue(DRConstants.touch_e, "0")));
                 dr.put(DRConstants.replace_s, Long.parseLong(cmd.getOptionValue(DRConstants.replace_s, "0")));
                 dr.put(DRConstants.replace_e, Long.parseLong(cmd.getOptionValue(DRConstants.replace_e, "0")));
-                dr.put(DRConstants.expiry_s, Long.parseLong(cmd.getOptionValue(DRConstants.expiry_s, "0")));
-                dr.put(DRConstants.expiry_e, Long.parseLong(cmd.getOptionValue(DRConstants.expiry_e, "0")));
+                dr.put(DRConstants.expiry_s, start + step * i);
+                dr.put(DRConstants.expiry_e, start + step * (i+1));
 
                 DocRange range = new DocRange(dr);
                 ws.dr = range;
