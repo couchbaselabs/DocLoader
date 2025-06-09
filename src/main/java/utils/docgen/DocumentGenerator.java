@@ -16,6 +16,7 @@ import utils.key.ReverseKey;
 import utils.key.SimpleKey;
 import utils.val.Cars;
 import utils.val.Hotel;
+import utils.val.HeterogeneousHotel;
 import utils.val.MiniCars;
 import utils.val.NimbusM;
 import utils.val.NimbusP;
@@ -59,6 +60,8 @@ abstract class KVGenerator{
             this.valInstance = NimbusM.class;
         else if (valClass.equals(Hotel.class.getSimpleName()))
             this.valInstance = Hotel.class;
+        else if (valClass.equals(HeterogeneousHotel.class.getSimpleName()))
+            this.valInstance = HeterogeneousHotel.class;
         else if (valClass.equals(Cars.class.getSimpleName()))
             this.valInstance = Cars.class;
         else if (valClass.equals(MiniCars.class.getSimpleName()))
