@@ -1,6 +1,5 @@
 package RestServer;
 
-import utils.common.FileDownload;
 import utils.docgen.DRConstants;
 import utils.docgen.DocRange;
 import utils.docgen.DocumentGenerator;
@@ -10,8 +9,9 @@ import couchbase.sdk.SDKClientPool;
 import couchbase.sdk.Server;
 import elasticsearch.EsClient;
 import couchbase.sdk.Result;
-import utils.taskmanager.TaskManager;
+import utils.common.FileDownload;
 import utils.taskmanager.Task;
+import utils.taskmanager.TaskManager;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -406,7 +406,8 @@ public class TaskRequest {
         DocumentGenerator dg = null;
         ws.dr = range;
         try {
-            dg = new DocumentGenerator(ws, ws.keyType, ws.valueType);
+            dg = new DocumentGenerator(ws, ws.keyType, ws.valueType, this.iterations,
+                                       this.numVBuckets, this.targetVBuckets);
         } catch (ClassNotFoundException e) {
             // e.printStackTrace();
             body.put("error", "Failed to create doc generator");
@@ -536,15 +537,17 @@ public class TaskRequest {
             return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
         }
 
-        WorkLoadSettings ws = new WorkLoadSettings(this.keyPrefix,
-                this.keySize, this.docSize,
-                this.createPercent, this.readPercent,
-                this.updatePercent, this.deletePercent, this.expiryPercent, this.processConcurrency,
-                this.ops, this.loadType, this.keyType, this.valueType,
-                this.validateDocs, this.gtm, this.validateDeletedDocs, this.mutate,
-                this.elastic, this.model, this.mockVector,
-                this.dim, this.base64, this.mutateField,
-                this.mutationTimeout);
+        WorkLoadSettings ws = new WorkLoadSettings(
+            this.keyPrefix, this.keySize, this.docSize,
+            this.createPercent, this.readPercent, this.updatePercent,
+            this.deletePercent, this.expiryPercent, this.subdocPercent,
+            this.processConcurrency, this.ops, this.loadType,
+            this.keyType, this.valueType,
+            this.validateDocs, this.gtm, this.validateDeletedDocs,
+            this.mutate, this.createPath, this.isSubdocXattr, this.isSubdocSysXattr,
+            this.elastic, this.model, this.mockVector,
+            this.dim, this.base64, this.mutateField,
+            this.mutationTimeout);
 
         HashMap<String, Number> dr = new HashMap<String, Number>();
         dr.put(DRConstants.create_s, this.createStartIndex);
@@ -561,13 +564,23 @@ public class TaskRequest {
         dr.put(DRConstants.replace_e, this.replaceEndIndex);
         dr.put(DRConstants.expiry_s, this.expiryStartIndex);
         dr.put(DRConstants.expiry_e, this.expiryEndIndex);
+        // Subdoc related indexes
+        dr.put(DRConstants.subdoc_insert_s, this.sdInsertStartIndex);
+        dr.put(DRConstants.subdoc_insert_e, this.sdInsertEndIndex);
+        dr.put(DRConstants.subdoc_upsert_s, this.sdUpsertStartIndex);
+        dr.put(DRConstants.subdoc_upsert_e, this.sdUpsertEndIndex);
+        dr.put(DRConstants.subdoc_remove_s, this.sdRemoveStartIndex);
+        dr.put(DRConstants.subdoc_remove_e, this.sdRemoveEndIndex);
+        dr.put(DRConstants.subdoc_read_s, this.sdReadStartIndex);
+        dr.put(DRConstants.subdoc_read_e, this.sdReadEndIndex);
 
         DocRange range = new DocRange(dr);
         DocumentGenerator dg = null;
 
         ws.dr = range;
         try {
-            dg = new DocumentGenerator(ws, ws.keyType, ws.valueType);
+            dg = new DocumentGenerator(ws, ws.keyType, ws.valueType, this.iterations,
+                                       this.numVBuckets, this.targetVBuckets);
         } catch (Exception e) {
             // e.printStackTrace();
             body.put("error", "Failed to create doc generator");

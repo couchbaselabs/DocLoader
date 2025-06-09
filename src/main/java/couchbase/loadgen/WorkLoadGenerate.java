@@ -25,11 +25,16 @@ import com.couchbase.client.java.kv.GetOptions;
 import com.couchbase.client.java.kv.InsertOptions;
 import com.couchbase.client.java.kv.RemoveOptions;
 import com.couchbase.client.java.kv.UpsertOptions;
+import com.couchbase.client.java.kv.LookupInSpec;
+import com.couchbase.client.java.kv.LookupInOptions;
+import com.couchbase.client.java.kv.MutateInOptions;
+import com.couchbase.client.java.kv.MutateInSpec;
 
 import couchbase.sdk.DocOps;
 import couchbase.sdk.Result;
 import couchbase.sdk.SDKClient;
 import couchbase.sdk.SDKClientPool;
+import couchbase.sdk.SubDocOps;
 import elasticsearch.EsClient;
 import reactor.util.function.Tuple2;
 import utils.docgen.DocumentGenerator;
@@ -37,8 +42,9 @@ import utils.taskmanager.Task;
 
 public class WorkLoadGenerate extends Task{
     DocumentGenerator dg;
-    public SDKClient sdk = null;
+    public SDKClient sdk;
     public DocOps docops;
+    public SubDocOps subDocOps;
     public String durability;
     public HashMap<String, List<Result>> failedMutations = new HashMap<String, List<Result>>();
     public boolean trackFailures = true;
@@ -51,6 +57,8 @@ public class WorkLoadGenerate extends Task{
     public InsertOptions setOptions;
     public RemoveOptions removeOptions;
     public GetOptions getOptions;
+    public MutateInOptions mutateInOptions;
+    public LookupInOptions lookupInOptions;
     public EsClient esClient = null;
     private SDKClientPool sdkClientPool;
     static Logger logger = LogManager.getLogger(WorkLoadGenerate.class);
@@ -59,10 +67,33 @@ public class WorkLoadGenerate extends Task{
     public String scope = "_default";
     public String collection = "_default";
 
+    private void update_subdoc_failed_mutation_result(
+            String op_type,
+            HashMap<String, List<Result>> failed_mutations,
+            List<HashMap<String,Object>> sd_results) {
+        if(!trackFailures)
+            return;
+        List<Result> result_arr;
+        if(!failedMutations.containsKey(op_type)) {
+            result_arr = new ArrayList<Result>();
+            failedMutations.put(op_type, result_arr);
+        } else {
+            result_arr = failedMutations.get(op_type);
+        }
+
+        for(HashMap<String, Object> sd_res : sd_results) {
+            result_arr.add(new Result((String)sd_res.get("id"),
+                                      sd_res.get("value"),
+                                      (Throwable)sd_res.get("error"),
+                                      (boolean)sd_res.get("status")));
+        }
+    }
+
     public WorkLoadGenerate(String taskName, DocumentGenerator dg, SDKClient client, String durability) {
         super(taskName);
         this.dg = dg;
         this.docops = new DocOps();
+        this.subDocOps = new SubDocOps();
         this.sdk = client;
         this.durability = durability;
     }
@@ -71,6 +102,7 @@ public class WorkLoadGenerate extends Task{
         super(taskName);
         this.dg = dg;
         this.docops = new DocOps();
+        this.subDocOps = new SubDocOps();
         this.sdk = client;
         this.durability = durability;
         this.trackFailures = trackFailures;
@@ -84,6 +116,7 @@ public class WorkLoadGenerate extends Task{
         super(taskName);
         this.dg = dg;
         this.docops = new DocOps();
+        this.subDocOps = new SubDocOps();
         this.sdk = client;
         this.durability = durability;
         this.trackFailures = trackFailures;
@@ -98,6 +131,7 @@ public class WorkLoadGenerate extends Task{
         super(taskName);
         this.dg = dg;
         this.docops = new DocOps();
+        this.subDocOps = new SubDocOps();
         this.sdk = client;
         this.esClient = esClient;
         this.durability = durability;
@@ -113,6 +147,7 @@ public class WorkLoadGenerate extends Task{
         super(taskName);
         this.dg = dg;
         this.docops = new DocOps();
+        this.subDocOps = new SubDocOps();
         this.sdkClientPool = clientPool;
         this.esClient = esClient;
         this.durability = durability;
@@ -123,14 +158,18 @@ public class WorkLoadGenerate extends Task{
         this.retryStrategy = retryStrategy;
     }
 
+    public void stop_load() {
+        this.stop_load = true;
+    }
+
     public void set_collection_for_load(String bucket_name, String scope, String collection) {
         this.bucket_name = bucket_name;
         this.scope = scope;
         this.collection = collection;
     }
 
-    @Override
-    public void run() {
+    public void actual_run() {
+        this.result = true;
         logger.info("Starting " + this.taskName);
         // Set timeout in WorkLoadSettings
         this.dg.ws.setTimeoutDuration(60, "seconds");
@@ -158,12 +197,24 @@ public class WorkLoadGenerate extends Task{
         getOptions = GetOptions.getOptions()
                 .timeout(this.dg.ws.timeout)
                 .retryStrategy(this.dg.ws.retryStrategy);
+        mutateInOptions = MutateInOptions.mutateInOptions()
+                .expiry(this.dg.ws.getDuration(this.exp, this.exp_unit))
+                .timeout(this.dg.ws.timeout)
+                .durability(this.dg.ws.durability)
+                .retryStrategy(this.dg.ws.retryStrategy);
+        lookupInOptions = LookupInOptions.lookupInOptions();
+
+        if(dg.ws.expiry == 0) {
+            // If expiry load is not set and we have exp value set,
+            // then apply it for inserts and upserts
+            setOptions = setOptions.expiry(this.dg.ws.getDuration(this.exp, this.exp_unit));
+            upsertOptions = upsertOptions.expiry(this.dg.ws.getDuration(this.exp, this.exp_unit));
+        }
+
         int ops = 0;
         boolean flag = false;
         Instant trackFailureTime_start = Instant.now();
-        while(this.stop_load == false) {
-            if (this.sdkClientPool != null)
-                this.sdk = this.sdkClientPool.get_client_for_bucket(this.bucket_name, this.scope, this.collection);
+        while(! this.stop_load) {
             Instant trackFailureTime_end = Instant.now();
             Duration timeElapsed = Duration.between(trackFailureTime_start, trackFailureTime_end);
             if(timeElapsed.toMinutes() > 5) {
@@ -187,6 +238,7 @@ public class WorkLoadGenerate extends Task{
                         result = docops.bulkInsert(this.sdk.connection, docs, setOptions);
                     ops += dg.ws.batchSize*dg.ws.creates/100;
                     if(trackFailures && result.size()>0)
+                        this.result = false;
                         try {
                             failedMutations.get("create").addAll(result);
                         } catch (Exception e) {
@@ -206,6 +258,7 @@ public class WorkLoadGenerate extends Task{
                         result = docops.bulkUpsert(this.sdk.connection, docs, upsertOptions);
                     ops += dg.ws.batchSize*dg.ws.updates/100;
                     if(trackFailures && result.size()>0)
+                        this.result = false;
                         try {
                             failedMutations.get("update").addAll(result);
                         } catch (Exception e) {
@@ -222,6 +275,7 @@ public class WorkLoadGenerate extends Task{
                         result = docops.bulkInsert(this.sdk.connection, docs, expiryOptions);
                     ops += dg.ws.batchSize*dg.ws.expiry/100;
                     if(trackFailures && result.size()>0)
+                        this.result = false;
                         try {
                             failedMutations.get("expiry").addAll(result);
                         } catch (Exception e) {
@@ -241,6 +295,7 @@ public class WorkLoadGenerate extends Task{
                     }
                     ops += dg.ws.batchSize*dg.ws.deletes/100;
                     if(trackFailures && result.size()>0)
+                        this.result = false;
                         try {
                             failedMutations.get("delete").addAll(result);
                         } catch (Exception e) {
@@ -267,7 +322,6 @@ public class WorkLoadGenerate extends Task{
                                         System.out.println("Validation failed for key: " + this.sdk.scope + ":" + this.sdk.collection + ":" + name);
                                         System.out.println("Actual Value - " + a);
                                         System.out.println("Expected Value - " + b);
-                                        this.sdk.disconnectCluster();
                                         System.out.println(this.taskName + " is completed!");
                                         return;
                                     }
@@ -275,7 +329,6 @@ public class WorkLoadGenerate extends Task{
                                     System.out.println("Validation failed for key: " + this.sdk.scope + ":" + this.sdk.collection + ":" + name);
                                     System.out.println("Actual Value - " + a);
                                     System.out.println("Expected Value - " + b);
-                                    this.sdk.disconnectCluster();
                                     System.out.println(this.taskName + " is completed!");
                                     return;
                                 }
@@ -285,6 +338,41 @@ public class WorkLoadGenerate extends Task{
                         }
                     }
                     ops += dg.ws.batchSize*dg.ws.reads/100;
+                }
+            }
+            if(dg.ws.subdocs> 0) {
+                List<Tuple2<String,List<MutateInSpec>>> docs;
+
+                docs = dg.nextSubDocBatch("insert");
+                if (docs.size()>0) {
+                    flag = true;
+                    List<HashMap<String,Object>> result = subDocOps.bulkSubDocOperation(this.sdk.connection, docs, mutateInOptions);
+                    ops += dg.ws.batchSize*dg.ws.subdocs/100;
+                    this.update_subdoc_failed_mutation_result("insert", failedMutations, result);
+                }
+
+                docs = dg.nextSubDocBatch("upsert");
+                if (docs.size()>0) {
+                    flag = true;
+                    List<HashMap<String,Object>> result = subDocOps.bulkSubDocOperation(this.sdk.connection, docs, mutateInOptions);
+                    ops += dg.ws.batchSize*dg.ws.subdocs/100;
+                    this.update_subdoc_failed_mutation_result("upsert", failedMutations, result);
+                }
+
+                List<Tuple2<String,List<LookupInSpec>>> lookup_docs = dg.nextSubDocLookupBatch();
+                if (lookup_docs.size()>0) {
+                    flag = true;
+                    List<HashMap<String,Object>> result = subDocOps.bulkGetSubDocOperation(this.sdk.connection, lookup_docs, lookupInOptions);
+                    ops += dg.ws.batchSize*dg.ws.subdocs/100;
+                    this.update_subdoc_failed_mutation_result("lookup", failedMutations, result);
+                }
+
+                docs = dg.nextSubDocBatch("remove");
+                if (docs.size()>0) {
+                    flag = true;
+                    List<HashMap<String,Object>> result = subDocOps.bulkSubDocOperation(this.sdk.connection, docs, mutateInOptions);
+                    ops += dg.ws.batchSize*dg.ws.subdocs/100;
+                    this.update_subdoc_failed_mutation_result("remove", failedMutations, result);
                 }
             }
             if(ops == 0)
@@ -305,8 +393,8 @@ public class WorkLoadGenerate extends Task{
                 }
         }
         logger.info(this.taskName + " is completed!");
-        this.result = true;
-        if (retryTimes > 0 && failedMutations.size() > 0)
+        if (retryTimes > 0 && failedMutations.size() > 0) {
+            this.result = true;
             for (Entry<String, List<Result>> optype: failedMutations.entrySet()) {
                 for (Result r: optype.getValue()) {
                     System.out.println("Loader Retrying: " + r.id() + " -> " + r.err().getClass().getSimpleName());
@@ -320,6 +408,9 @@ public class WorkLoadGenerate extends Task{
                             this.result = false;
                         } catch (DocumentExistsException e) {
                             System.out.println("Retry Create failed for key: " + r.id());
+                        } catch (Exception e) {
+                            System.out.println("Exception during create'" + r.id() + "' :: " + e.toString());
+                            this.result = false;
                         }
                     case "update":
                         try {
@@ -330,6 +421,10 @@ public class WorkLoadGenerate extends Task{
                             this.result = false;
                         }  catch (DocumentExistsException e) {
                             System.out.println("Retry update failed for key: " + r.id());
+                            this.result = false;
+                        } catch (Exception e) {
+                            System.out.println("Exception during update'" + r.id() + "' :: " + e.toString());
+                            this.result = false;
                         }
                     case "delete":
                         try {
@@ -340,13 +435,25 @@ public class WorkLoadGenerate extends Task{
                             this.result = false;
                         } catch (DocumentNotFoundException e) {
                             System.out.println("Retry delete failed for key: " + r.id());
+                            this.result = false;
                         }
                     }
                 }
             }
+        }
     }
 
-    public void stop_load() {
-       this.stop_load = true;
+    @Override
+    public void run() {
+        if (this.sdkClientPool != null)
+            this.sdk = this.sdkClientPool.get_client_for_bucket(
+                this.bucket_name, this.scope, this.collection);
+        try {
+            this.actual_run();
+        }
+        finally{
+            if (this.sdkClientPool != null)
+                this.sdkClientPool.release_client(this.sdk);
+        }
     }
 }
