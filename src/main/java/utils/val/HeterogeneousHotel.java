@@ -1,11 +1,8 @@
 /*
 Primitive type: BOOLEAN, STRING, BIGINT, or DOUBLE
-
 Special type: NULL or MISSING
-
 Composite type: OBJECT, array, or MULTISET
- */
-
+*/
 
 package utils.val;
 
