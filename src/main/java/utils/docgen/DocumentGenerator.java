@@ -22,6 +22,7 @@ import utils.val.MiniCars;
 import utils.val.NimbusM;
 import utils.val.NimbusP;
 import utils.val.Product;
+import utils.val.RandomlyNestedJson;
 import utils.val.SimpleValue;
 import utils.val.SimpleSubDocValue;
 import utils.val.Vector;
@@ -158,6 +159,8 @@ abstract class KVGenerator{
             this.valInstance = siftBigANN.class;
         else if (valClass.equals(SimpleSubDocValue.class.getSimpleName()))
             this.valInstance = SimpleSubDocValue.class;
+        else if (valClass.equals(RandomlyNestedJson.class.getSimpleName()))
+            this.valInstance = RandomlyNestedJson.class;
         else
             this.valInstance = SimpleValue.class;
     }
