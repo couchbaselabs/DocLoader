@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.couchbase.client.java.json.JsonArray;
 import com.couchbase.client.java.json.JsonObject;
@@ -33,6 +34,7 @@ public class Hotel {
     private List<String> mutate_field_list = new ArrayList<>();
 
     public WorkLoadSettings ws;
+    private AtomicLong counter = new AtomicLong(-1);
     private float[] flt_buf;
     private int flt_buf_length;
 
@@ -133,6 +135,7 @@ public class Hotel {
         jsonObject.put("type", this.htypes.get(index % htypes.size()));
         jsonObject.put("url", this.url.get(index));
         jsonObject.put("mutate", this.mutate);
+        jsonObject.put("counter", this.counter.incrementAndGet());
         if(this.ws.mutated > 0 && !this.ws.mutate_field.isEmpty()){
             this.random.setSeed((key).hashCode());
             index = this.random.nextInt(4096);
