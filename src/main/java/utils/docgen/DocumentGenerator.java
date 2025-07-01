@@ -351,7 +351,7 @@ public class DocumentGenerator extends KVGenerator{
         Object v = null;
             try {
                 if (this.target_vbuckets != null && this.target_vbuckets.length > 0) {
-                    k = this.generated_create_keys.get(temp-1);
+                    k = this.generated_create_keys.get(temp);
                 } else {
                     k = (String) this.keyMethod.invoke(this.keys, temp);
                 }
@@ -368,7 +368,7 @@ public class DocumentGenerator extends KVGenerator{
         Object v = null;
             try {
                 if (this.target_vbuckets != null && this.target_vbuckets.length > 0) {
-                    k = this.generated_read_keys.get(temp-1);
+                    k = this.generated_read_keys.get(temp);
                 } else {
                     k = (String) this.keyMethod.invoke(this.keys, temp);
                 }
@@ -385,7 +385,7 @@ public class DocumentGenerator extends KVGenerator{
         Object v = null;
             try {
                 if (this.target_vbuckets != null && this.target_vbuckets.length > 0) {
-                    k = this.generated_update_keys.get(temp-1);
+                    k = this.generated_update_keys.get(temp);
                 } else {
                     k = (String) this.keyMethod.invoke(this.keys, temp);
                 }
@@ -402,7 +402,7 @@ public class DocumentGenerator extends KVGenerator{
         Object v = null;
             try {
                 if (this.target_vbuckets != null && this.target_vbuckets.length > 0) {
-                    k = this.generated_expiry_keys.get(temp-1);
+                    k = this.generated_expiry_keys.get(temp);
                 } else {
                     k = (String) this.keyMethod.invoke(this.keys, temp);
                 }
@@ -504,7 +504,7 @@ public class DocumentGenerator extends KVGenerator{
             try {
                 temp = this.ws.dr.deleteItr.incrementAndGet();
                 if (this.target_vbuckets != null && this.target_vbuckets.length > 0) {
-                    docs.add(this.generated_delete_keys.get(temp-1));
+                    docs.add(this.generated_delete_keys.get(temp));
                 } else {
                     docs.add((String) this.keyMethod.invoke(this.keys, temp));
                 }
