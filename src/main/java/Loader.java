@@ -196,6 +196,15 @@ public class Loader {
         Option mutation_timeout = new Option("mutation_timeout", true, "");
         options.addOption(mutation_timeout);
 
+        Option target_vbuckets_option = new Option("target_vbuckets", true, "Target vbuckets (comma-separated list of positive integers)");
+        options.addOption(target_vbuckets_option);
+
+        Option iterations_option = new Option("iterations", true, "Number of iterations to run");
+        options.addOption(iterations_option);
+
+        Option total_vbuckets_option = new Option("total_vbuckets", true, "Total number of vbuckets (default: 1024)");
+        options.addOption(total_vbuckets_option);
+
         Option maxTTL = new Option("maxTTL", true, "Expiry Time");
         options.addOption(maxTTL);
 
@@ -241,6 +250,19 @@ public class Loader {
                 cmd.getOptionValue("mutate_field",""),
                 Integer.parseInt(cmd.getOptionValue("mutation_timeout","0")));
 
+        int[] targetVbuckets = new int[0]; // Default to empty array
+        String targetVbucketsStr = cmd.getOptionValue("target_vbuckets");
+        if (targetVbucketsStr != null && !targetVbucketsStr.trim().isEmpty()) {
+            String[] vbucketStrings = targetVbucketsStr.split(",");
+            targetVbuckets = new int[vbucketStrings.length];
+            for (int i = 0; i < vbucketStrings.length; i++) {
+                targetVbuckets[i] = Integer.parseInt(vbucketStrings[i].trim());
+            }
+        }
+
+        int iterations = Integer.parseInt(cmd.getOptionValue("iterations", "1"));
+        int totalVbuckets = Integer.parseInt(cmd.getOptionValue("total_vbuckets", "1024"));
+
         HashMap<String, Number> dr = new HashMap<String, Number>();
         dr.put(DRConstants.create_s, Long.parseLong(cmd.getOptionValue(DRConstants.create_s, "0")));
         dr.put(DRConstants.create_e, Long.parseLong(cmd.getOptionValue(DRConstants.create_e, "0")));
@@ -261,7 +283,7 @@ public class Loader {
         ws.dr = range;
         DocumentGenerator dg = null;
         try {
-            dg = new DocumentGenerator(ws, ws.keyType, ws.valueType);
+            dg = new DocumentGenerator(ws, ws.keyType, ws.valueType, iterations, totalVbuckets, targetVbuckets);
         } catch (ClassNotFoundException e1) {
             e1.printStackTrace();
         }
