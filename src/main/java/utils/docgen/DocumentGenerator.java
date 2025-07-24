@@ -99,7 +99,7 @@ abstract class KVGenerator{
         try {
             if (this.keyInstance.getSimpleName().equals(CircularKey.class.getSimpleName())) {
                 this.keys = keyInstance.getConstructor(WorkLoadSettings.class, int.class).newInstance(ws, iterations);
-                this.iterationsMethod = this.keyInstance.getDeclaredMethod("checkIterations", null);
+                this.iterationsMethod = this.keyInstance.getDeclaredMethod("checkIterations");
             }
             else
                 this.keys = keyInstance.getConstructor(WorkLoadSettings.class).newInstance(ws);
@@ -212,7 +212,7 @@ abstract class KVGenerator{
             return true;
         if (this.keyInstance.getSimpleName().equals(CircularKey.class.getSimpleName())) {
             try {
-                if ((boolean)this.iterationsMethod.invoke(this.keys, null)) {
+                if ((boolean)this.iterationsMethod.invoke(this.keys)) {
                     this.resetRead();
                     return true;
                 }
@@ -226,9 +226,9 @@ abstract class KVGenerator{
     public boolean has_next_update() {
         if (this.ws.dr.updateItr.get() < this.ws.dr.update_e)
             return true;
-        if (this.keyInstance.getSimpleName().equals(CircularKey.class.getSimpleName()) || TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis())-startTime<ws.mutation_timeout) {
+        if (this.keyInstance.getSimpleName().equals(CircularKey.class.getSimpleName())) {
             try {
-                if ((boolean)this.iterationsMethod.invoke(this.keys, null)) {
+                if ((boolean)this.iterationsMethod.invoke(this.keys)) {
                     this.resetUpdate();
                     this.ws.mutated += 1;
                     return true;
@@ -236,6 +236,11 @@ abstract class KVGenerator{
             } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
                 e1.printStackTrace();
             }
+        }
+        if (TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis())-startTime<ws.mutation_timeout) {
+            this.resetUpdate();
+            this.ws.mutated += 1;
+            return true;
         }
         return false;
     }
