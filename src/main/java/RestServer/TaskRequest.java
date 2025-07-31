@@ -4,10 +4,12 @@ import utils.docgen.DRConstants;
 import utils.docgen.DocRange;
 import utils.docgen.DocumentGenerator;
 import utils.docgen.WorkLoadSettings;
+import utils.docgen.mongo.MongoDocumentGenerator;
 import couchbase.loadgen.WorkLoadGenerate;
 import couchbase.sdk.SDKClientPool;
 import couchbase.sdk.Server;
 import elasticsearch.EsClient;
+import mongo.sdk.MongoSDKClient;
 import couchbase.sdk.Result;
 import utils.common.FileDownload;
 import utils.taskmanager.Task;
@@ -44,6 +46,7 @@ public class TaskRequest {
     static ArrayList<Server> known_servers = new ArrayList<Server>();
     static Object lock_obj = new Object();
     static private ConcurrentHashMap<String, WorkLoadGenerate> loader_tasks = new ConcurrentHashMap<String, WorkLoadGenerate>();
+    static private ConcurrentHashMap<String, mongo.loadgen.WorkLoadGenerate> mongo_loader_tasks = new ConcurrentHashMap<String, mongo.loadgen.WorkLoadGenerate>();
 
     // Consumed by init_task_manager()
     @JsonProperty("num_workers")
@@ -222,8 +225,25 @@ public class TaskRequest {
      * -valueType,--valueType <arg>
      */
 
+    // Mongo params
+    @JsonProperty("mongo_server_ip")
+    private String mongoServerIP;
+    @JsonProperty("mongo_server_port")
+    private String mongoServerPort;
+    @JsonProperty("mongo_username")
+    private String mongoUsername;
+    @JsonProperty("mongo_password")
+    private String mongoPassword;
+    @JsonProperty("mongo_bucket_name")
+    private String mongoBucketName;
+    @JsonProperty("mongo_collection_name")
+    private String mongoCollectionName;
+    @JsonProperty("mongo_is_atlas")
+    private boolean mongoIsAtlas;
+    private ArrayList<MongoSDKClient> mongoClients;
+
     private boolean validate_doc_load_params() {
-        if (this.bucketName == null)
+        if (this.bucketName == null && this.mongoBucketName == null)
             return false;
 
         if (this.createPercent
@@ -319,7 +339,13 @@ public class TaskRequest {
         System.out.println("mutation_timeout: " + mutationTimeout);
         System.out.println("base_vectors_file_path: " + baseVectorsFilePath);
         System.out.println("sift_url: " + siftURL);
-
+        System.out.println("mongo_server_ip: " + mongoServerIP);
+        System.out.println("mongo_server_port: " + mongoServerPort);
+        System.out.println("mongo_username: " + mongoUsername);
+        System.out.println("mongo_password: " + mongoPassword);
+        System.out.println("mongo_bucket_name: " + mongoBucketName);
+        System.out.println("mongo_collection_name: " + mongoCollectionName);
+        System.out.println("mongo_is_atlas: " + mongoIsAtlas);
     }
 
     public ResponseEntity<Map<String, Object>> create_clients() {
@@ -343,11 +369,21 @@ public class TaskRequest {
             TaskRequest.SDKClientPool.shutdown();
         TaskRequest.SDKClientPool = new SDKClientPool();
     }
+    
+    private void reset_mongo_sdk_client_pool() {
+        if (this.mongoClients != null) {
+            for (MongoSDKClient client : this.mongoClients) {
+                client.disconnectCluster();
+            }
+        }
+        this.mongoClients = new ArrayList<MongoSDKClient>();
+    }
 
     private void init_taskmanager() {
         TaskRequest.taskManager = new TaskManager(this.num_workers);
         System.out.println("Init TaskManager workers=" + this.num_workers);
         this.reset_sdk_client_pool();
+        this.reset_mongo_sdk_client_pool();
     }
 
     private void abort_all_tasks() {
@@ -366,6 +402,7 @@ public class TaskRequest {
         System.out.println("Shutdown task manager");
         TaskRequest.taskManager.shutdown();
         this.reset_sdk_client_pool();
+        this.reset_mongo_sdk_client_pool();
     }
 
     public ResponseEntity<Map<String, Object>> get_doc_keys() {
@@ -466,6 +503,38 @@ public class TaskRequest {
         } catch (Exception e) {
             body.put("status", false);
             body.put("error", e.toString());
+        }
+        return new ResponseEntity<>(body, HttpStatus.OK);
+    }
+
+    public ResponseEntity<Map<String, Object>> submit_task_mongo() {
+        Map<String, Object> body = new HashMap<>();
+        try {
+            TaskRequest.taskManager.submit(TaskRequest.mongo_loader_tasks.get(this.taskName));
+            TimeUnit.MILLISECONDS.sleep(200);
+            body.put("status", true);
+        } catch (Exception e) {
+            body.put("status", false);
+            body.put("error", e.toString());
+        }
+        return new ResponseEntity<>(body, HttpStatus.OK);
+    }
+
+    public ResponseEntity<Map<String, Object>> get_task_result_mongo() {
+        Map<String, Object> body = new HashMap<>();
+        try {
+            mongo.loadgen.WorkLoadGenerate task = TaskRequest.mongo_loader_tasks.get(this.taskName);
+        if (task != null) {
+            boolean okay = TaskRequest.taskManager.getTaskResult(task);
+            body.put("status", okay);
+        } else {
+            body.put("error", "Task " + this.taskName + " does not exists");
+                body.put("status", false);
+            }
+            return new ResponseEntity<>(body, HttpStatus.OK);
+        } catch (Exception e) {
+            body.put("error", e.toString());
+            body.put("status", false);
         }
         return new ResponseEntity<>(body, HttpStatus.OK);
     }
@@ -616,6 +685,76 @@ public class TaskRequest {
             TaskRequest.loader_tasks.put(th_name, wlg);
 
             task_names.add(th_name);
+        }
+        body.put("tasks", task_names);
+        body.put("status", true);
+        return new ResponseEntity<>(body, HttpStatus.OK);
+    }
+
+    public ResponseEntity<Map<String, Object>> doc_load_mongo() {
+        this.log_request();
+        Map<String, Object> body = new HashMap<>();
+        boolean okay = this.validate_doc_load_params();
+        if (!okay) {
+            body.put("error", "Param validation failed");
+            return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        }
+        WorkLoadSettings ws = new WorkLoadSettings(
+                this.keyPrefix,
+                this.keySize,
+                this.docSize,
+                this.createPercent,
+                this.readPercent,
+                this.updatePercent,
+                this.deletePercent,
+                this.expiryPercent,
+                this.processConcurrency,
+                this.ops,
+                this.loadType,
+                this.keyType,
+                this.valueType,
+                false, false, false,
+                this.mutate
+                );
+        HashMap<String, Number> dr = new HashMap<String, Number>();
+        dr.put(DRConstants.create_s, this.createStartIndex);
+        dr.put(DRConstants.create_e ,this.createEndIndex);
+        dr.put(DRConstants.read_s ,this.readStartIndex);
+        dr.put(DRConstants.read_e ,this.readEndIndex);
+        dr.put(DRConstants.update_s ,this.updateStartIndex);
+        dr.put(DRConstants.update_e ,this.updateEndIndex);
+        dr.put(DRConstants.delete_s ,this.deleteStartIndex);
+        dr.put(DRConstants.delete_e ,this.deleteEndIndex);
+        dr.put(DRConstants.expiry_s ,this.expiryStartIndex);
+        dr.put(DRConstants.expiry_e ,this.expiryEndIndex);
+
+        DocRange range = new DocRange(dr);
+        ws.dr = range;
+        MongoDocumentGenerator dg = null;
+        try {
+            dg = new MongoDocumentGenerator(ws, ws.keyType, ws.valueType);
+        } catch (ClassNotFoundException e1) {
+            e1.printStackTrace();
+        }
+        ArrayList<String> task_names = new ArrayList<String>();
+        this.mongoClients = new ArrayList<MongoSDKClient>();
+        Server mongoServer = new Server(this.mongoServerIP, this.mongoServerPort, this.mongoUsername, this.mongoPassword, null);
+        for (int i = 0; i < ws.workers; i++) {
+            try {
+                MongoSDKClient client = new MongoSDKClient(mongoServer,
+                this.mongoBucketName,
+                this.mongoCollectionName,
+                this.mongoIsAtlas);
+                client.connectCluster();
+                this.mongoClients.add(client);
+                String th_name = "Loader" + i;
+                mongo.loadgen.WorkLoadGenerate task = new mongo.loadgen.WorkLoadGenerate(th_name, dg, client);
+                TaskRequest.mongo_loader_tasks.put(th_name, task);
+                task_names.add(th_name);
+                TimeUnit.MILLISECONDS.sleep(500);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
         body.put("tasks", task_names);
         body.put("status", true);

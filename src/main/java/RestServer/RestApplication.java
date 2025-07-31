@@ -59,6 +59,16 @@ class RestHandlers {
         return taskRequest.submit_task();
     }
 
+    @PostMapping(value="/submit_task_mongo")
+    public ResponseEntity<Map<String, Object>> submit_task_mongo(@RequestBody TaskRequest taskRequest) {
+        return taskRequest.submit_task_mongo();
+    }
+
+    @PostMapping(value="/get_task_result_mongo")
+    public ResponseEntity<Map<String, Object>> get_task_result_mongo(@RequestBody TaskRequest taskRequest) {
+        return taskRequest.get_task_result_mongo();
+    }
+
     // Graceful way for stopping the load
     @PostMapping(value="/stop_task")
     public ResponseEntity<Map<String, Object>> stop_task(@RequestBody TaskRequest taskRequest) {
@@ -100,6 +110,18 @@ class RestHandlers {
     public ResponseEntity<Map<String, Object>> doc_load(@RequestBody TaskRequest taskRequest) {
         try {
             return taskRequest.doc_load();
+        } catch (Exception e) {
+            Map<String, Object> body = new HashMap<>();
+            body.put("error", e.toString());
+            body.put("status", false);
+            return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @PostMapping(value="/doc_load_mongo")
+    public ResponseEntity<Map<String, Object>> doc_load_mongo(@RequestBody TaskRequest taskRequest) {
+        try {
+            return taskRequest.doc_load_mongo();
         } catch (Exception e) {
             Map<String, Object> body = new HashMap<>();
             body.put("error", e.toString());
