@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.bson.Document;
 
 import com.mongodb.client.model.InsertOneModel;
+import com.mongodb.client.model.UpdateOneModel;
 
 import reactor.util.function.Tuple2;
 import reactor.util.function.Tuples;
@@ -208,11 +209,13 @@ public class MongoDocumentGenerator extends DocGenerator{
         return docs;
     }
 
-    public List<Tuple2<String, Object>> nextUpdateBatch() {
-        List<Tuple2<String, Object>> docs = new ArrayList<Tuple2<String,Object>>();
+    public List<UpdateOneModel<Document>> nextUpdateBatch() {
+        List<UpdateOneModel<Document>> docs = new ArrayList<UpdateOneModel<Document>>();
         int count = 0;
-        while (this.has_next_update() && count<ws.batchSize*ws.updates/100) {
-            docs.add(this.nextUpdate());
+        int req_count = ws.batchSize*ws.updates/100;
+        while (this.has_next_update() && count<req_count) {
+            Document doc = (Document) this.nextUpdate().getT2();
+            docs.add(new UpdateOneModel<>(new Document("_id", doc.get("_id")), new Document("$set", doc)));
             count += 1;
         }
         return docs;

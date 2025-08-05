@@ -11,7 +11,9 @@ import org.bson.Document;
 
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.MongoCollection;
+import com.mongodb.client.model.BulkWriteOptions;
 import com.mongodb.client.model.InsertOneModel;
+import com.mongodb.client.model.UpdateOneModel;
 
 import mongo.sdk.MongoSDKClient;
 import utils.docgen.mongo.MongoDocumentGenerator;
@@ -34,6 +36,10 @@ public class WorkLoadGenerate extends Task{
     	return collection.bulkWrite(documents);
       }
 
+	public BulkWriteResult bulkUpsert(MongoCollection<Document> collection, List<UpdateOneModel<Document>> documents) {
+		return collection.bulkWrite(documents);
+	}
+
 	@Override
 	public void run() {
 		logger.info("Starting " + this.taskName);
@@ -52,6 +58,14 @@ public class WorkLoadGenerate extends Task{
 					flag = true;
 					this.bulkInsert(this.sdk.collection, docs);
 					ops += dg.ws.batchSize*dg.ws.creates/100;
+				}
+			}
+			if(dg.ws.updates > 0) {
+				List<UpdateOneModel<Document>> docs = dg.nextUpdateBatch();
+				if (docs.size()>0) {
+					flag = true;
+					this.bulkUpsert(this.sdk.collection, docs);
+					ops += dg.ws.batchSize*dg.ws.updates/100;
 				}
 			}
 			if(ops == 0)

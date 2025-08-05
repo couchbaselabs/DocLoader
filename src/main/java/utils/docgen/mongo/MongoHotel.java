@@ -26,11 +26,13 @@ public class MongoHotel {
 	private ArrayList<String> names = new ArrayList<String>();
 	private ArrayList<String> url = new ArrayList<String>();
 	private ArrayList<ArrayList<Document>> reviews = new ArrayList<ArrayList<Document>>();
-	
+	private WorkLoadSettings ws;
+
 	public MongoHotel(WorkLoadSettings ws) {
 		super();
+		this.ws = ws;
 		this.random = new Random();
-		this.random.setSeed(ws.keyPrefix.hashCode());
+		this.random.setSeed(ws.keyPrefix.hashCode() + ws.mutated);
         faker = new Faker(random);
 		for (int index=0; index<4096; index++) {
             addresses.add(faker.address().streetAddress());
@@ -93,6 +95,7 @@ public class MongoHotel {
 		jsonObject.put("reviews", this.reviews.get(index));
 		jsonObject.put("type", this.htypes.get(index % htypes.size()));
 		jsonObject.put("url", this.url.get(index));
+		jsonObject.put("mutate", this.ws.mutated);
 		return jsonObject;
 	}
 
