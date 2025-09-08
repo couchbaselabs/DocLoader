@@ -180,6 +180,8 @@ public class TaskRequest {
     private int processConcurrency;
     @JsonProperty("iterations")
     private int iterations;
+    @JsonProperty("track_failures")
+    private boolean trackFailures;
     @JsonProperty("validate_docs")
     private boolean validateDocs;
     @JsonProperty("validate_deleted_docs")
@@ -322,6 +324,7 @@ public class TaskRequest {
         System.out.println("gtm: " + gtm);
         System.out.println("process_concurrency: " + processConcurrency);
         System.out.println("iterations: " + iterations);
+        System.out.println("track_failures: " + trackFailures);
         System.out.println("validate_docs: " + validateDocs);
         System.out.println("validate_deleted_docs: " + validateDeletedDocs);
         System.out.println("mutate: " + mutate);
@@ -671,7 +674,6 @@ public class TaskRequest {
             }
         }
 
-        boolean trackFailures = true;
         ArrayList<String> task_names = new ArrayList<String>();
         String task_name = "Task_" + TaskRequest.task_id.incrementAndGet();
         int retry = 0;
@@ -679,7 +681,7 @@ public class TaskRequest {
             String th_name = task_name + "_" + i;
             WorkLoadGenerate wlg = new WorkLoadGenerate(th_name, dg, TaskRequest.SDKClientPool, esClient,
                     this.durabilityLevel,
-                    this.docTTL, this.docTTLUnit, trackFailures,
+                    this.docTTL, this.docTTLUnit, this.trackFailures,
                     retry, null);
             wlg.set_collection_for_load(this.bucketName, this.scopeName, this.collectionName);
             TaskRequest.loader_tasks.put(th_name, wlg);
@@ -846,14 +848,13 @@ public class TaskRequest {
                     return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
                 }
 
-                boolean trackFailures = true;
                 String task_name = "Task_" + TaskRequest.task_id.incrementAndGet() + k + "_" + ws.dr.create_s + "_"
                         + ws.dr.create_e;
                 int retry = 0;
                 String th_name = task_name + "_" + i;
                 WorkLoadGenerate wlg = new WorkLoadGenerate(th_name, dg, TaskRequest.SDKClientPool, esClient,
                         this.durabilityLevel,
-                        this.docTTL, this.docTTLUnit, trackFailures, retry, null);
+                        this.docTTL, this.docTTLUnit, this.trackFailures, retry, null);
                 wlg.set_collection_for_load(this.bucketName, this.scopeName, this.collectionName);
                 TaskRequest.loader_tasks.put(th_name, wlg);
                 task_names.add(th_name);
