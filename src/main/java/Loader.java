@@ -214,6 +214,9 @@ public class Loader {
         Option retry = new Option("retry", true, "Retry failures n times");
         options.addOption(retry);
 
+        Option trackFailures = new Option("trackFailures", true, "Track failures");
+        options.addOption(trackFailures);
+
         HelpFormatter formatter = new HelpFormatter();
         CommandLineParser parser = new DefaultParser();
         CommandLine cmd;
@@ -307,12 +310,12 @@ public class Loader {
         for (int i = 0; i < ws.workers; i++) {
             try {
                 String th_name = "Loader" + i;
-                boolean trackFailures = false;
+                boolean _trackFailures = Boolean.parseBoolean(cmd.getOptionValue("trackFailures", "false"));
                 if (Integer.parseInt(cmd.getOptionValue("retry", "0")) > 0)
-                    trackFailures = true;
+                    _trackFailures = true;
                 tm.submit(new WorkLoadGenerate(th_name, dg, client, esClient, cmd.getOptionValue("durability", "NONE"),
                         Integer.parseInt(cmd.getOptionValue("maxTTL", "0")),
-                        cmd.getOptionValue("maxTTLUnit", "seconds"), trackFailures,
+                        cmd.getOptionValue("maxTTLUnit", "seconds"), _trackFailures,
                         Integer.parseInt(cmd.getOptionValue("retry", "0")), null));
                 TimeUnit.MILLISECONDS.sleep(500);
             } catch (Exception e) {
