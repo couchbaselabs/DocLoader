@@ -237,7 +237,7 @@ public class WorkLoadGenerate extends Task{
                     if(this.sdk != null)
                         result = docops.bulkInsert(this.sdk.connection, docs, setOptions);
                     ops += dg.ws.batchSize*dg.ws.creates/100;
-                    if(trackFailures && result.size()>0)
+                    if(this.trackFailures && result.size()>0)
                         this.result = false;
                         try {
                             failedMutations.get("create").addAll(result);
@@ -257,7 +257,7 @@ public class WorkLoadGenerate extends Task{
                     if(this.sdk != null)
                         result = docops.bulkUpsert(this.sdk.connection, docs, upsertOptions);
                     ops += dg.ws.batchSize*dg.ws.updates/100;
-                    if(trackFailures && result.size()>0)
+                    if(this.trackFailures && result.size()>0)
                         this.result = false;
                         try {
                             failedMutations.get("update").addAll(result);
@@ -274,7 +274,7 @@ public class WorkLoadGenerate extends Task{
                     if(this.sdk != null)
                         result = docops.bulkInsert(this.sdk.connection, docs, expiryOptions);
                     ops += dg.ws.batchSize*dg.ws.expiry/100;
-                    if(trackFailures && result.size()>0)
+                    if(this.trackFailures && result.size()>0)
                         this.result = false;
                         try {
                             failedMutations.get("expiry").addAll(result);
@@ -294,7 +294,7 @@ public class WorkLoadGenerate extends Task{
                         this.esClient.deleteDocs(this.collection.replace("_", ""), docs);
                     }
                     ops += dg.ws.batchSize*dg.ws.deletes/100;
-                    if(trackFailures && result.size()>0)
+                    if(this.trackFailures && result.size()>0)
                         this.result = false;
                         try {
                             failedMutations.get("delete").addAll(result);
