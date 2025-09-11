@@ -351,7 +351,7 @@ public class DocumentGenerator extends KVGenerator{
     }
 
     public Tuple2<String, Object> next() {
-        long temp = this.ws.dr.createItr.incrementAndGet();
+        long temp = this.ws.dr.createItr.getAndIncrement();
         String k = null;
         Object v = null;
             try {
@@ -368,7 +368,7 @@ public class DocumentGenerator extends KVGenerator{
     }
 
     public Tuple2<String, Object> nextRead() {
-        long temp = this.ws.dr.readItr.incrementAndGet();
+        long temp = this.ws.dr.readItr.getAndIncrement();
         String k = null;
         Object v = null;
             try {
@@ -385,7 +385,7 @@ public class DocumentGenerator extends KVGenerator{
     }
 
     public Tuple2<String, Object> nextUpdate() {
-        long temp = this.ws.dr.updateItr.incrementAndGet();
+        long temp = this.ws.dr.updateItr.getAndIncrement();
         String k = null;
         Object v = null;
             try {
@@ -402,7 +402,7 @@ public class DocumentGenerator extends KVGenerator{
     }
 
     public Tuple2<String, Object> nextExpiry() {
-        long temp = this.ws.dr.expiryItr.incrementAndGet();
+        long temp = this.ws.dr.expiryItr.getAndIncrement();
         String k = null;
         Object v = null;
             try {
@@ -425,16 +425,16 @@ public class DocumentGenerator extends KVGenerator{
 
         switch(op_type) {
             case "insert":
-                temp = this.ws.dr.subdocInsertItr.incrementAndGet();
+                temp = this.ws.dr.subdocInsertItr.getAndIncrement();
                 break;
             case "upsert":
-                temp = this.ws.dr.subdocUpsertItr.incrementAndGet();
+                temp = this.ws.dr.subdocUpsertItr.getAndIncrement();
                 break;
             case "remove":
-                temp = this.ws.dr.subdocRemoveItr.incrementAndGet();
+                temp = this.ws.dr.subdocRemoveItr.getAndIncrement();
                 break;
             case "lookup":
-                temp = this.ws.dr.subdocReadItr.incrementAndGet();
+                temp = this.ws.dr.subdocReadItr.getAndIncrement();
                 break;
             default:
                 return null;
@@ -451,7 +451,7 @@ public class DocumentGenerator extends KVGenerator{
     public Tuple2<String, List<LookupInSpec>>nextSubDocLookup() {
         String key = null;
         List<LookupInSpec> specs = null;
-        long temp = this.ws.dr.subdocReadItr.incrementAndGet();
+        long temp = this.ws.dr.subdocReadItr.getAndIncrement();
         try {
             key = (String) this.keyMethod.invoke(this.keys, temp);
             specs = (List<LookupInSpec>) this.subdocLookupMethod.invoke(this.vals, key);
@@ -507,7 +507,7 @@ public class DocumentGenerator extends KVGenerator{
         List<String> docs = new ArrayList<String>();
         while (this.has_next_delete() && count<ws.batchSize*ws.deletes/100) {
             try {
-                temp = this.ws.dr.deleteItr.incrementAndGet();
+                temp = this.ws.dr.deleteItr.getAndIncrement();
                 if (this.target_vbuckets != null && this.target_vbuckets.length > 0) {
                     docs.add(this.generated_delete_keys.get(temp));
                 } else {

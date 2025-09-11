@@ -136,7 +136,7 @@ public class MongoDocumentGenerator extends DocGenerator{
     }
 
     public Tuple2<String, Object> next() {
-        long temp = this.ws.dr.createItr.incrementAndGet();
+        long temp = this.ws.dr.createItr.getAndIncrement();
         String k = null;
         Object v = null;
             try {
@@ -149,7 +149,7 @@ public class MongoDocumentGenerator extends DocGenerator{
     }
 
     public Tuple2<String, Object> nextRead() {
-        long temp = this.ws.dr.readItr.incrementAndGet();
+        long temp = this.ws.dr.readItr.getAndIncrement();
         String k = null;
         Object v = null;
             try {
@@ -162,7 +162,7 @@ public class MongoDocumentGenerator extends DocGenerator{
     }
 
     public Tuple2<String, Object> nextUpdate() {
-        long temp = this.ws.dr.updateItr.incrementAndGet();
+        long temp = this.ws.dr.updateItr.getAndIncrement();
         String k = null;
         Object v = null;
             try {
@@ -175,7 +175,7 @@ public class MongoDocumentGenerator extends DocGenerator{
     }
 
     public Tuple2<String, Object> nextExpiry() {
-        long temp = this.ws.dr.expiryItr.incrementAndGet();
+        long temp = this.ws.dr.expiryItr.getAndIncrement();
         String k = null;
         Object v = null;
             try {
@@ -237,7 +237,7 @@ public class MongoDocumentGenerator extends DocGenerator{
         List<String> docs = new ArrayList<String>();
         while (this.has_next_delete() && count<ws.batchSize*ws.deletes/100) {
             try {
-                temp = this.ws.dr.deleteItr.incrementAndGet();
+                temp = this.ws.dr.deleteItr.getAndIncrement();
                 docs.add((String) this.keyMethod.invoke(this.keys, temp));
             } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
                 e.printStackTrace();
