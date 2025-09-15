@@ -63,7 +63,7 @@ public class siftBigANN {
       }
 
     public Object next(String key) throws IOException {
-        int id = Integer.parseInt(key.split("-")[1]) - 1 + this.ws.mutated;
+        int id = Integer.parseInt(key.split("-")[1]) + this.ws.mutated;
         float[] vector =  new float[128];
         if(this.mutateCount > 0) {
             byte[] byteArray = new byte[(int) 4];
