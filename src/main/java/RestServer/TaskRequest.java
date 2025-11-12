@@ -76,47 +76,47 @@ public class TaskRequest {
     @JsonProperty("create_percent")
     private int createPercent;
     @JsonProperty("create_start")
-    private int createStartIndex;
+    private long createStartIndex;
     @JsonProperty("create_end")
-    private int createEndIndex;
+    private long createEndIndex;
     // Delete params
     @JsonProperty("delete_percent")
     private int deletePercent;
     @JsonProperty("delete_start")
-    private int deleteStartIndex;
+    private long deleteStartIndex;
     @JsonProperty("delete_end")
-    private int deleteEndIndex;
+    private long deleteEndIndex;
     // Update params
     @JsonProperty("update_percent")
     private int updatePercent;
     @JsonProperty("update_start")
-    private int updateStartIndex;
+    private long updateStartIndex;
     @JsonProperty("update_end")
-    private int updateEndIndex;
+    private long updateEndIndex;
     // Read params
     @JsonProperty("read_percent")
     private int readPercent;
     @JsonProperty("read_start")
-    private int readStartIndex;
+    private long readStartIndex;
     @JsonProperty("read_end")
-    private int readEndIndex;
+    private long readEndIndex;
     // Touch params
     @JsonProperty("touch_start")
-    private int touchStartIndex;
+    private long touchStartIndex;
     @JsonProperty("touch_end")
-    private int touchEndIndex;
+    private long touchEndIndex;
     // Replace params
     @JsonProperty("replace_start")
-    private int replaceStartIndex;
+    private long replaceStartIndex;
     @JsonProperty("replace_end")
-    private int replaceEndIndex;
+    private long replaceEndIndex;
     // Expiry params
     @JsonProperty("expiry_percent")
     private int expiryPercent;
     @JsonProperty("expiry_start")
-    private int expiryStartIndex;
+    private long expiryStartIndex;
     @JsonProperty("expiry_end")
-    private int expiryEndIndex;
+    private long expiryEndIndex;
     // Subdoc params
     @JsonProperty("subdoc_percent")
     private int subdocPercent;
@@ -128,24 +128,24 @@ public class TaskRequest {
     private boolean isSubdocSysXattr;
     // Subdoc insert params
     @JsonProperty("sd_insert_start")
-    private int sdInsertStartIndex;
+    private long sdInsertStartIndex;
     @JsonProperty("sd_insert_end")
-    private int sdInsertEndIndex;
+    private long sdInsertEndIndex;
     // Subdoc upsert params
     @JsonProperty("sd_upsert_start")
-    private int sdUpsertStartIndex;
+    private long sdUpsertStartIndex;
     @JsonProperty("sd_upsert_end")
-    private int sdUpsertEndIndex;
+    private long sdUpsertEndIndex;
     // Subdoc remove params
     @JsonProperty("sd_remove_start")
-    private int sdRemoveStartIndex;
+    private long sdRemoveStartIndex;
     @JsonProperty("sd_remove_end")
-    private int sdRemoveEndIndex;
+    private long sdRemoveEndIndex;
     // Subdoc lookup params
     @JsonProperty("sd_read_start")
-    private int sdReadStartIndex;
+    private long sdReadStartIndex;
     @JsonProperty("sd_read_end")
-    private int sdReadEndIndex;
+    private long sdReadEndIndex;
     // Document related params
     @JsonProperty("key_prefix")
     private String keyPrefix;
@@ -792,7 +792,7 @@ public class TaskRequest {
         int[] steps = new int[] { 0, 1000000, 2000000, 5000000, 10000000, 20000000, 50000000, 100000000, 200000000,
                 500000000, 1000000000 };
         int poolSize = this.processConcurrency;
-        int start_offset = 0, end_offset = 0;
+        long start_offset = 0, end_offset = 0;
         if (this.createPercent > 0) {
             start_offset = this.createStartIndex;
             end_offset = this.createEndIndex;
@@ -806,9 +806,9 @@ public class TaskRequest {
         while (!(steps[k] <= start_offset && start_offset < steps[k + 1]))
             k += 1;
         while (steps[k] < end_offset) {
-            int start = Math.max(start_offset, steps[k]);
-            int end = Math.min(end_offset, steps[k + 1]);
-            int step = (end - start) / poolSize;
+            long start = Math.max(start_offset, steps[k]);
+            long end = Math.min(end_offset, steps[k + 1]);
+            long step = (end - start) / poolSize;
             for (int i = 0; i < poolSize; i++) {
                 WorkLoadSettings ws = new WorkLoadSettings(this.keyPrefix,
                         this.keySize, this.docSize,
