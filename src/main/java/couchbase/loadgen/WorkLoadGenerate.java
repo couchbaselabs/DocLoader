@@ -237,13 +237,14 @@ public class WorkLoadGenerate extends Task{
                     if(this.sdk != null)
                         result = docops.bulkInsert(this.sdk.connection, docs, setOptions);
                     ops += dg.ws.batchSize*dg.ws.creates/100;
-                    if(this.trackFailures && result.size()>0)
+                    if(this.trackFailures && result.size()>0){
                         this.result = false;
                         try {
                             failedMutations.get("create").addAll(result);
                         } catch (Exception e) {
                             failedMutations.put("create", result);
                         }
+                    }
                 }
             }
             if(dg.ws.updates > 0) {
@@ -257,13 +258,14 @@ public class WorkLoadGenerate extends Task{
                     if(this.sdk != null)
                         result = docops.bulkUpsert(this.sdk.connection, docs, upsertOptions);
                     ops += dg.ws.batchSize*dg.ws.updates/100;
-                    if(this.trackFailures && result.size()>0)
+                    if(this.trackFailures && result.size()>0){
                         this.result = false;
                         try {
                             failedMutations.get("update").addAll(result);
                         } catch (Exception e) {
                             failedMutations.put("update", result);
                         }
+                    }
                 }
             }
             if(dg.ws.expiry > 0) {
@@ -274,13 +276,14 @@ public class WorkLoadGenerate extends Task{
                     if(this.sdk != null)
                         result = docops.bulkInsert(this.sdk.connection, docs, expiryOptions);
                     ops += dg.ws.batchSize*dg.ws.expiry/100;
-                    if(this.trackFailures && result.size()>0)
+                    if(this.trackFailures && result.size()>0){
                         this.result = false;
                         try {
                             failedMutations.get("expiry").addAll(result);
                         } catch (Exception e) {
                             failedMutations.put("expiry", result);
                         }
+                    }
                 }
             }
             if(dg.ws.deletes > 0) {
@@ -294,13 +297,14 @@ public class WorkLoadGenerate extends Task{
                         this.esClient.deleteDocs(this.collection.replace("_", ""), docs);
                     }
                     ops += dg.ws.batchSize*dg.ws.deletes/100;
-                    if(this.trackFailures && result.size()>0)
+                    if(this.trackFailures && result.size()>0){
                         this.result = false;
                         try {
                             failedMutations.get("delete").addAll(result);
                         } catch (Exception e) {
                             failedMutations.put("delete", result);
                         }
+                    }
                 }
             }
             if(dg.ws.reads > 0) {
