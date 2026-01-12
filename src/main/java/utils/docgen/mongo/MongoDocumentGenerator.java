@@ -50,8 +50,8 @@ abstract class DocGenerator{
         try {
             this.keys = keyInstance.getConstructor(WorkLoadSettings.class).newInstance(ws);
             this.vals = valInstance.getConstructor(WorkLoadSettings.class).newInstance(ws);
-            this.keyMethod = this.keyInstance.getDeclaredMethod("next", long.class);
-            this.valMethod = this.valInstance.getDeclaredMethod("next", String.class);
+            this.keyMethod = this.keyInstance.getMethod("next", long.class);
+            this.valMethod = this.valInstance.getMethod("next", String.class);
         } catch (InstantiationException e) {
             e.printStackTrace();
         } catch (IllegalAccessException e) {
