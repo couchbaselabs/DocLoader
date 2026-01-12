@@ -68,12 +68,12 @@ abstract class KVGenerator{
         try {
             this.keys = keyInstance.getConstructor(WorkLoadSettings.class).newInstance(ws);
             this.vals = valInstance.getConstructor(WorkLoadSettings.class).newInstance(ws);
-            this.keyMethod = this.keyInstance.getDeclaredMethod("next", long.class);
+            this.keyMethod = this.keyInstance.getMethod("next", long.class);
             if (this.valInstance.getSimpleName().equals(SimpleSubDocValue.class.getSimpleName())) {
-                this.valMethod = this.valInstance.getDeclaredMethod("next", String.class, String.class);
-                this.subdocLookupMethod = this.valInstance.getDeclaredMethod("next_lookup", String.class);
+                this.valMethod = this.valInstance.getMethod("next", String.class, String.class);
+                this.subdocLookupMethod = this.valInstance.getMethod("next_lookup", String.class);
             } else {
-                this.valMethod = this.valInstance.getDeclaredMethod("next", String.class);
+                this.valMethod = this.valInstance.getMethod("next", String.class);
             }
         } catch (InstantiationException e) {
             e.printStackTrace();
@@ -99,17 +99,17 @@ abstract class KVGenerator{
         try {
             if (this.keyInstance.getSimpleName().equals(CircularKey.class.getSimpleName())) {
                 this.keys = keyInstance.getConstructor(WorkLoadSettings.class, int.class).newInstance(ws, iterations);
-                this.iterationsMethod = this.keyInstance.getDeclaredMethod("checkIterations");
+                this.iterationsMethod = this.keyInstance.getMethod("checkIterations");
             }
             else
                 this.keys = keyInstance.getConstructor(WorkLoadSettings.class).newInstance(ws);
             this.vals = valInstance.getConstructor(WorkLoadSettings.class).newInstance(ws);
-            this.keyMethod = this.keyInstance.getDeclaredMethod("next", long.class);
+            this.keyMethod = this.keyInstance.getMethod("next", long.class);
             if (this.valInstance.getSimpleName().equals(SimpleSubDocValue.class.getSimpleName())) {
-                this.valMethod = this.valInstance.getDeclaredMethod("next", String.class, String.class);
-                this.subdocLookupMethod = this.valInstance.getDeclaredMethod("next_lookup", String.class);
+                this.valMethod = this.valInstance.getMethod("next", String.class, String.class);
+                this.subdocLookupMethod = this.valInstance.getMethod("next_lookup", String.class);
             } else {
-                this.valMethod = this.valInstance.getDeclaredMethod("next", String.class);
+                this.valMethod = this.valInstance.getMethod("next", String.class);
             }
         } catch (InstantiationException e) {
             e.printStackTrace();
@@ -171,12 +171,12 @@ abstract class KVGenerator{
     public void set_vbuckets_config(int num_vbuckets, int[] target_vbuckets) throws NoSuchMethodException, IllegalAccessException, InvocationTargetException {
         this.num_vbuckets = num_vbuckets;
         this.target_vbuckets = target_vbuckets;
-        Method set_total_vbs_func = this.keyInstance.getDeclaredMethod("set_total_vbs", int.class);
+        Method set_total_vbs_func = this.keyInstance.getMethod("set_total_vbs", int.class);
         set_total_vbs_func.invoke(this.keys, num_vbuckets);
     }
 
     public void generate_keys_for_target_vbs() throws NoSuchMethodException, IllegalAccessException, InvocationTargetException {
-        Method genKeysForTargetVBsFunc = this.keyInstance.getDeclaredMethod(
+        Method genKeysForTargetVBsFunc = this.keyInstance.getMethod(
             "generate_keys_for_target_vbs", Long.class, Long.class, int[].class);
 
         if (target_vbuckets != null && target_vbuckets.length > 0) {
