@@ -1,7 +1,6 @@
 package couchbase.sdk;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -36,41 +35,38 @@ public class DocOps {
     public List<Result> bulkInsert(Collection collection, List<Tuple2<String, Object>> documents, InsertOptions insertOptions) {
         ReactiveCollection reactiveCollection = collection.reactive();
 
-        List<Result> out = new ArrayList<Result>();
-
-        Flux.fromIterable(documents)
+        // Emit error Results as part of the stream and collect at the end
+        // This is thread-safe and avoids synchronization overhead
+        return Flux.fromIterable(documents)
                 .flatMap(documentToInsert -> {
-
                   String k = documentToInsert.getT1();
                   Object v = documentToInsert.getT2();
 
                   return reactiveCollection.insert(k, v, insertOptions)
-                          .doOnError(error -> out.add(new Result(k, v, error, false)))
-                          .onErrorResume(error -> Mono.empty());
+                          .then(Mono.<Result>empty())
+                          .onErrorResume(error -> Mono.just(new Result(k, v, error, false)));
                 })
-                .blockLast();
-
-        return out;
+                .collectList()
+                .block();
       }
 
     public List<Result> bulkUpsert(Collection collection, List<Tuple2<String, Object>> documents,
             UpsertOptions upsertOptions) {
         ReactiveCollection reactiveCollection = collection.reactive();
-        List<Result> out = new ArrayList<Result>();
 
-        Flux.fromIterable(documents)
+        // Emit error Results as part of the stream and collect at the end
+        // This is thread-safe and avoids synchronization overhead
+        return Flux.fromIterable(documents)
                 .flatMap(documentToInsert -> {
-
                   String k = documentToInsert.getT1();
                   Object v = documentToInsert.getT2();
 
                   return reactiveCollection.upsert(k, v, upsertOptions)
-                          .doOnError(error -> out.add(new Result(k, v, error, false)))
-                          .onErrorResume(error -> Mono.empty());
+                          .then(Mono.<Result>empty())
+                          .onErrorResume(error -> Mono.just(new Result(k, v, error, false)));
                 })
-                .blockLast();
-
-        return out;
+                .collectList()
+                .block();
     }
 
     public List<Tuple2<String, Object>> bulkGets(Collection collection, List<Tuple2<String, Object>> documents, GetOptions getOptions) {
@@ -97,18 +93,16 @@ public class DocOps {
     public List<Result> bulkDelete(Collection collection, List<String> keys, RemoveOptions removeOptions) {
         ReactiveCollection reactiveCollection = collection.reactive();
 
-        List<Result> out = new ArrayList<Result>();
-
-        Flux.fromIterable(keys)
+        // Emit error Results as part of the stream and collect at the end
+        // This is thread-safe and avoids synchronization overhead
+        return Flux.fromIterable(keys)
                 .flatMap(key -> {
-
                   return reactiveCollection.remove(key, removeOptions)
-                          .doOnError(error -> out.add(new Result(key, null, error, false)))
-                          .onErrorResume(error -> Mono.empty());
+                          .then(Mono.<Result>empty())
+                          .onErrorResume(error -> Mono.just(new Result(key, null, error, false)));
                 })
-                .blockLast();
-
-        return out;
+                .collectList()
+                .block();
     }
 
     public List<ConcurrentHashMap<String, Object>> bulkReplace(Collection collection, List<Tuple2<String, Object>> documents,

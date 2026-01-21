@@ -93,7 +93,7 @@ public class SimpleTransaction {
         return config.expirationTime(Duration.of(expiryTimeout, ChronoUnit.SECONDS)).build();
     }
     public List<Tuple2<String, JsonObject>> ReadTransaction(Transactions transaction, List<Collection> collections, List<String> Readkeys) {
-        List<Tuple2<String, JsonObject>> res = null;
+        List<Tuple2<String, JsonObject>> res = new ArrayList<>();
         try {
             TransactionResult result = transaction.run(ctx -> {
                 for (String key: Readkeys) {
