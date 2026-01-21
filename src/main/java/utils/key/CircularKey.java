@@ -29,8 +29,10 @@ public class CircularKey extends RandomKey {
     }
 
     public boolean checkIterations() {
-        // Can be both -1 (Infinite load) or greater than 1 (iterations set by user)
-        if (this.iterations != 0) {
+        // Can be -1 (Infinite load) or >= 1 (iterations set by user)
+        // Stop when iterations reaches 1 (not 0) since first pass runs
+        // without calling checkIterations()
+        if (this.iterations != 1) {
             if (this.iterations >= 1)
                 // Num_iterations set by user, so decrement by one
                 this.iterations -= 1;
