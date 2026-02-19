@@ -224,7 +224,7 @@ public class SIFTLoader {
         String cb = cmd.getOptionValue(skipCB.getOpt(), "false");
         if (!Boolean.parseBoolean(cb)) {
             try {
-                clientPool.create_clients(cmd.getOptionValue("bucket"), master, 2);
+                clientPool.create_clients(cmd.getOptionValue("bucket"), master, 32);
             } catch (Exception e) {
                 // TODO Auto-generated catch block
                 e.printStackTrace();

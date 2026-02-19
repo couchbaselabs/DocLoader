@@ -23,6 +23,7 @@ import com.couchbase.client.java.kv.RemoveOptions;
 import com.couchbase.client.java.kv.ReplaceOptions;
 import com.couchbase.client.java.kv.TouchOptions;
 import com.couchbase.client.java.kv.UpsertOptions;
+import com.couchbase.client.java.json.JsonObject;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -37,6 +38,7 @@ public class DocOps {
 
         // Emit error Results as part of the stream and collect at the end
         // This is thread-safe and avoids synchronization overhead
+        int concurrency = Math.min(documents.size(), 1000);
         return Flux.fromIterable(documents)
                 .flatMap(documentToInsert -> {
                   String k = documentToInsert.getT1();
@@ -45,7 +47,7 @@ public class DocOps {
                   return reactiveCollection.insert(k, v, insertOptions)
                           .then(Mono.<Result>empty())
                           .onErrorResume(error -> Mono.just(new Result(k, v, error, false)));
-                })
+                }, concurrency)
                 .collectList()
                 .block();
       }
@@ -56,6 +58,7 @@ public class DocOps {
 
         // Emit error Results as part of the stream and collect at the end
         // This is thread-safe and avoids synchronization overhead
+        int concurrency = Math.min(documents.size(), 1000);
         return Flux.fromIterable(documents)
                 .flatMap(documentToInsert -> {
                   String k = documentToInsert.getT1();
@@ -64,13 +67,14 @@ public class DocOps {
                   return reactiveCollection.upsert(k, v, upsertOptions)
                           .then(Mono.<Result>empty())
                           .onErrorResume(error -> Mono.just(new Result(k, v, error, false)));
-                })
+                }, concurrency)
                 .collectList()
                 .block();
     }
 
     public List<Tuple2<String, Object>> bulkGets(Collection collection, List<Tuple2<String, Object>> documents, GetOptions getOptions) {
         final ReactiveCollection reactiveCollection = collection.reactive();
+        int concurrency = Math.min(documents.size(), 1000);
         List<Tuple2<String, Object>> returnValue = Flux.fromIterable(documents)
                 .flatMap(new Function<Tuple2<String, Object>, Publisher<Tuple2<String, Object>>>() {
                     public Publisher<Tuple2<String, Object>> apply(Tuple2<String, Object> documentToInsert) {
@@ -78,7 +82,13 @@ public class DocOps {
                         return reactiveCollection.get(id, getOptions)
                                 .map(new Function<GetResult, Tuple2<String, Object>>() {
                                     public Tuple2<String, Object> apply(GetResult result) {
-                                        return Tuples.of(id, result.contentAs(Person.class));
+                                        Object content = null;
+                                        try {
+                                            content = result.contentAs(JsonObject.class);
+                                        } catch (Exception e) {
+                                            throw new RuntimeException(e);
+                                        }
+                                        return Tuples.of(id, content);
                                     }
                                 }).onErrorResume(new Function<Throwable, Mono<Tuple2<String, Object>>>() {
                                     public Mono<Tuple2<String, Object>> apply(Throwable error) {
@@ -86,7 +96,7 @@ public class DocOps {
                                     }
                                 });
                     }
-                }).collectList().block();
+                }, concurrency).collectList().block();
         return returnValue;
     }
 
@@ -95,12 +105,13 @@ public class DocOps {
 
         // Emit error Results as part of the stream and collect at the end
         // This is thread-safe and avoids synchronization overhead
+        int concurrency = Math.min(keys.size(), 1000);
         return Flux.fromIterable(keys)
                 .flatMap(key -> {
                   return reactiveCollection.remove(key, removeOptions)
                           .then(Mono.<Result>empty())
                           .onErrorResume(error -> Mono.just(new Result(key, null, error, false)));
-                })
+                }, concurrency)
                 .collectList()
                 .block();
     }
@@ -108,6 +119,7 @@ public class DocOps {
     public List<ConcurrentHashMap<String, Object>> bulkReplace(Collection collection, List<Tuple2<String, Object>> documents,
             ReplaceOptions replaceOptions) {
         final ReactiveCollection reactiveCollection = collection.reactive();
+        int concurrency = Math.min(documents.size(), 1000);
         List<ConcurrentHashMap<String, Object>> returnValue = Flux.fromIterable(documents)
                 .flatMap(new Function<Tuple2<String, Object>, Publisher<ConcurrentHashMap<String, Object>>>() {
                     public Publisher<ConcurrentHashMap<String, Object>> apply(Tuple2<String, Object> documentToInsert) {
@@ -134,13 +146,14 @@ public class DocOps {
                                     }
                                 });
                     }
-                }).collectList().block();
+                }, concurrency).collectList().block();
         return returnValue;
     }
 
     public List<ConcurrentHashMap<String, Object>> bulkTouch(Collection collection, List<String> keys, final int exp,
             TouchOptions touchOptions, Duration exp_duration) {
         final ReactiveCollection reactiveCollection = collection.reactive();
+        int concurrency = Math.min(keys.size(), 1000);
         List<ConcurrentHashMap<String, Object>> returnValue = Flux.fromIterable(keys)
                 .flatMap(new Function<String, Publisher<ConcurrentHashMap<String, Object>>>() {
                     public Publisher<ConcurrentHashMap<String, Object>> apply(String key){
@@ -163,7 +176,7 @@ public class DocOps {
                             }
                                 }).defaultIfEmpty(returnValue);
                     }
-                }).collectList().block();
+                }, concurrency).collectList().block();
         return returnValue;
     }
 
