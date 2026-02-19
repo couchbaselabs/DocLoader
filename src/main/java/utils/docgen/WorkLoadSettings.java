@@ -9,7 +9,7 @@ public class WorkLoadSettings extends WorkLoadBase {
     public String keyPrefix = "test_docs-";
     public int workers = 10;
     public int ops = 40000;
-    public int batchSize = ops/workers;
+    public int batchSize = Math.max(1000, (ops/workers) * 4);
     public int keySize = 15;
     public int docSize = 256;
 
@@ -72,7 +72,7 @@ public class WorkLoadSettings extends WorkLoadBase {
         this.expiry = e;
         this.workers = workers;
         this.ops = ops;
-        this.batchSize = this.ops/this.workers;
+        this.batchSize = Math.max(1000, (this.ops/this.workers) * 4);
         this.gtm = gtm;
         this.expectDeleted = deleted;
         this.validate = validate;
@@ -106,7 +106,7 @@ public class WorkLoadSettings extends WorkLoadBase {
         this.workers = workers;
         this.ops = ops;
 
-        this.batchSize = this.ops/this.workers;
+        this.batchSize = Math.max(1000, (this.ops/this.workers) * 4);
         this.gtm = gtm;
         this.expectDeleted = deleted;
         this.validate = validate;
@@ -133,7 +133,7 @@ public class WorkLoadSettings extends WorkLoadBase {
         this.expiry = e;
         this.workers = workers;
         this.ops = ops;
-        this.batchSize = this.ops/this.workers;
+        this.batchSize = Math.max(1000, (this.ops/this.workers) * 4);
         this.gtm = gtm;
         this.expectDeleted = deleted;
         this.validate = validate;
@@ -201,7 +201,7 @@ public class WorkLoadSettings extends WorkLoadBase {
         this.is_subdoc_xattr = is_subdoc_xattr;
         this.is_subdoc_sys_xattr = is_subdoc_sys_xattr;
 
-        this.batchSize = this.ops/this.workers;
+        this.batchSize = Math.max(1000, (this.ops/this.workers) * 4);
         this.gtm = gtm;
         this.expectDeleted = deleted;
         this.validate = validate;
@@ -237,14 +237,14 @@ public class WorkLoadSettings extends WorkLoadBase {
         this.is_subdoc_xattr = is_subdoc_xattr;
         this.is_subdoc_sys_xattr = is_subdoc_sys_xattr;
 
-        this.batchSize = this.ops/this.workers;
+        this.batchSize = Math.max(1000, (this.ops/this.workers) * 4);
         this.gtm = gtm;
         this.expectDeleted = deleted;
         this.validate = validate;
         this.mutated = mutated;
         this.valueType = valueType;
         this.keyType = keyType;
-        
+
         this.elastic = elastic;
         this.model = model;
         this.mockVector = mockVector;
