@@ -321,12 +321,17 @@ public class Loader {
                 boolean _trackFailures = Boolean.parseBoolean(cmd.getOptionValue("trackFailures", "false"));
                 if (Integer.parseInt(cmd.getOptionValue("retry", "0")) > 0)
                     _trackFailures = true;
-                tm.submit(new WorkLoadGenerate(th_name, dg, clientPool, esClient, cmd.getOptionValue("durability", "NONE"),
+                WorkLoadGenerate wlg = new WorkLoadGenerate(th_name, dg, clientPool, esClient, cmd.getOptionValue("durability", "NONE"),
                         Integer.parseInt(cmd.getOptionValue("maxTTL", "0")),
                         cmd.getOptionValue("maxTTLUnit", "seconds"), _trackFailures,
-                        Integer.parseInt(cmd.getOptionValue("retry", "0")), null));
+                        Integer.parseInt(cmd.getOptionValue("retry", "0")), null);
+                wlg.set_collection_for_load(
+                            cmd.getOptionValue("bucket"),
+                            cmd.getOptionValue("scope", "_default"),
+                            cmd.getOptionValue("collection", "_default"));
                 // Reduced startup delay from 500ms to 50ms for faster ramp-up
                 // With 32 workers: 15.5s → 1.55s startup time
+                tm.submit(wlg);
                 TimeUnit.MILLISECONDS.sleep(50);
             } catch (Exception e) {
                 e.printStackTrace();
