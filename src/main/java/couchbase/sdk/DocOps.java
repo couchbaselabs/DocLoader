@@ -123,8 +123,7 @@ public class DocOps {
     public List<ConcurrentHashMap<String, Object>> bulkReplace(Collection collection, List<Tuple2<String, Object>> documents,
             ReplaceOptions replaceOptions) {
         final ReactiveCollection reactiveCollection = collection.reactive();
-        int concurrency = Math.min(documents.size(), 5000);
-        int concurrency = Math.min(documents.size(), 5000);
+        int concurrency = Math.min(documents.size(), 2000);
         List<ConcurrentHashMap<String, Object>> returnValue = Flux.fromIterable(documents)
                 .flatMap(new Function<Tuple2<String, Object>, Publisher<ConcurrentHashMap<String, Object>>>() {
                     public Publisher<ConcurrentHashMap<String, Object>> apply(Tuple2<String, Object> documentToInsert) {
@@ -158,8 +157,7 @@ public class DocOps {
     public List<ConcurrentHashMap<String, Object>> bulkTouch(Collection collection, List<String> keys, final int exp,
             TouchOptions touchOptions, Duration exp_duration) {
         final ReactiveCollection reactiveCollection = collection.reactive();
-        int concurrency = Math.min(keys.size(), 5000);
-        int concurrency = Math.min(keys.size(), 5000);
+        int concurrency = Math.min(keys.size(), 2000);
         List<ConcurrentHashMap<String, Object>> returnValue = Flux.fromIterable(keys)
                 .flatMap(new Function<String, Publisher<ConcurrentHashMap<String, Object>>>() {
                     public Publisher<ConcurrentHashMap<String, Object>> apply(String key){
