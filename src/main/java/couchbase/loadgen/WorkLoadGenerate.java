@@ -225,6 +225,7 @@ public class WorkLoadGenerate extends Task{
             Instant start = Instant.now();
             if(dg.ws.creates > 0) {
                 // Instant st = Instant.now();
+                System.out.println(dg.ws.batchSize);
                 List<Tuple2<String, Object>> docs = dg.nextInsertBatch();
                 // Instant en = Instant.now();
                 // System.out.println(this.taskName + " Time Taken to generate " + docs.size() + "docs: " + Duration.between(st, en).toMillis() + "ms");

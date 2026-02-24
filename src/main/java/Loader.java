@@ -317,7 +317,9 @@ public class Loader {
                         Integer.parseInt(cmd.getOptionValue("maxTTL", "0")),
                         cmd.getOptionValue("maxTTLUnit", "seconds"), _trackFailures,
                         Integer.parseInt(cmd.getOptionValue("retry", "0")), null));
-                TimeUnit.MILLISECONDS.sleep(500);
+                // Reduced startup delay from 500ms to 50ms for faster ramp-up
+                // With 32 workers: 15.5s → 1.55s startup time
+                TimeUnit.MILLISECONDS.sleep(50);
             } catch (Exception e) {
                 e.printStackTrace();
             }

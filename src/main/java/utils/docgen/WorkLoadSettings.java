@@ -72,7 +72,10 @@ public class WorkLoadSettings extends WorkLoadBase {
         this.expiry = e;
         this.workers = workers;
         this.ops = ops;
-        this.batchSize = Math.max(1000, (this.ops/this.workers) * 4);
+        // Improved batch size calculation with reasonable upper bound
+        // Previous batchSize = Math.max(1000, (ops/workers) * 4) could be 125,000+ with high ops
+        // New formula caps at 10,000 to prevent memory issues while maintaining throughput
+        this.batchSize = Math.min(10000, Math.max(1000, (this.ops/this.workers) * 4));
         this.gtm = gtm;
         this.expectDeleted = deleted;
         this.validate = validate;
