@@ -145,7 +145,7 @@ public class Loader {
         Option validate = new Option("validate", "validate", true, "Validate Data during Reads");
         options.addOption(validate);
 
-        Option gtm = new Option("gtm", "gtm", true, "Go for max doc ops");
+        Option gtm = new Option("gtm", "gtm", true, "Go for max doc ops (disables rate limiting)");
         options.addOption(gtm);
 
         Option deleted = new Option("deleted", "deleted", true, "To verify deleted docs");

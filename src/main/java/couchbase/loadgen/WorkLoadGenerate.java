@@ -388,10 +388,14 @@ public class WorkLoadGenerate extends Task{
             ops = 0;
             Instant end = Instant.now();
             timeElapsed = Duration.between(start, end);
-            if(!this.dg.ws.gtm && timeElapsed.toMillis() < 1000)
+            // Smarter throttling: only sleep if significantly under time limit, and reduce sleep duration
+            if(!this.dg.ws.gtm && timeElapsed.toMillis() < 900)
                 try {
-                    long i =  (long) ((1000-timeElapsed.toMillis()));
-                    TimeUnit.MILLISECONDS.sleep(i);
+                    // Reduce sleep to 70% of needed time to allow burst periods
+                    long sleepTime = (long) ((900-timeElapsed.toMillis()) * 0.7);
+                    if(sleepTime > 10) { // Only sleep if > 10ms
+                        TimeUnit.MILLISECONDS.sleep(sleepTime);
+                    }
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }

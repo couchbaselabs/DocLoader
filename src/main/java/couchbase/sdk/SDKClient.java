@@ -35,12 +35,13 @@ public class SDKClient {
             .securityConfig(SecurityConfig.enableTls(true)
             .trustManagerFactory(InsecureTrustManagerFactory.INSTANCE))
             .ioConfig(IoConfig.enableDnsSrv(true))
-            .ioConfig(IoConfig.numKvConnections(200))
+            .ioConfig(IoConfig.numKvConnections(500))
             .build();
 
     public static ClusterEnvironment env2 = ClusterEnvironment.builder()
             .timeoutConfig(TimeoutConfig.builder().kvTimeout(Duration.ofSeconds(10)))
-            .ioConfig(IoConfig.enableDnsSrv(true)).ioConfig(IoConfig.numKvConnections(200))
+            .ioConfig(IoConfig.enableDnsSrv(true))
+            .ioConfig(IoConfig.numKvConnections(500))
             .build();
 
     public SDKClient(Server master, String bucket, String scope, String collection) {
