@@ -38,8 +38,8 @@ public class DocOps {
 
         // Emit error Results as part of the stream and collect at the end
         // This is thread-safe and avoids synchronization overhead
-        // Reduced to 2000 to prevent server overload (ENDPOINT_NOT_WRITABLE errors)
-        int concurrency = Math.min(documents.size(), 2000);
+        // Now 4000 since each worker has its own connection pool
+        int concurrency = Math.min(documents.size(), 4000);
         return Flux.fromIterable(documents)
                 .flatMap(documentToInsert -> {
                   String k = documentToInsert.getT1();
@@ -59,8 +59,8 @@ public class DocOps {
 
         // Emit error Results as part of the stream and collect at the end
         // This is thread-safe and avoids synchronization overhead
-        // Reduced to 2000 to prevent server overload (ENDPOINT_NOT_WRITABLE errors)
-        int concurrency = Math.min(documents.size(), 2000);
+        // Now 4000 since each worker has its own connection pool
+        int concurrency = Math.min(documents.size(), 4000);
         return Flux.fromIterable(documents)
                 .flatMap(documentToInsert -> {
                   String k = documentToInsert.getT1();
@@ -76,8 +76,8 @@ public class DocOps {
 
     public List<Tuple2<String, Object>> bulkGets(Collection collection, List<Tuple2<String, Object>> documents, GetOptions getOptions) {
         final ReactiveCollection reactiveCollection = collection.reactive();
-        // Reduced to 2000 to prevent server overload
-        int concurrency = Math.min(documents.size(), 2000);
+        // Now 4000 since each worker has its own connection pool
+        int concurrency = Math.min(documents.size(), 4000);
         List<Tuple2<String, Object>> returnValue = Flux.fromIterable(documents)
                 .flatMap(new Function<Tuple2<String, Object>, Publisher<Tuple2<String, Object>>>() {
                     public Publisher<Tuple2<String, Object>> apply(Tuple2<String, Object> documentToInsert) {
@@ -108,8 +108,8 @@ public class DocOps {
 
         // Emit error Results as part of the stream and collect at the end
         // This is thread-safe and avoids synchronization overhead
-        // Reduced to 2000 to prevent server overload (ENDPOINT_NOT_WRITABLE errors)
-        int concurrency = Math.min(keys.size(), 2000);
+        // Now 4000 since each worker has its own connection pool
+        int concurrency = Math.min(keys.size(), 4000);
         return Flux.fromIterable(keys)
                 .flatMap(key -> {
                   return reactiveCollection.remove(key, removeOptions)
