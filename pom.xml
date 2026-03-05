@@ -111,6 +111,7 @@
         </dependency>
 	</dependencies>
 	<build>
+        <finalName>magmadocloader/magmadocloader</finalName>
 		<pluginManagement>
 			<plugins>
 				<plugin>
@@ -183,7 +184,6 @@
 							<Class-Path>.</Class-Path>
 						</manifestEntries>
 					</archive>
-					<finalName>magmadocloader/magmadocloader</finalName>
 				</configuration>
 			</plugin>
 		</plugins>

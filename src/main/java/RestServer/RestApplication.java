@@ -3,6 +3,7 @@ package RestServer;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration;
@@ -24,10 +25,13 @@ public class RestApplication {
 class RestHandlers {
     public static Logger logger = LogManager.getLogger(RestHandlers.class);
 
+    @Value("${server.name:java_doc_loader}")
+    private String serverName;
+
     @GetMapping(value={"/check-online", "/"})
     public ResponseEntity<Map<String, Object>>  CheckOnline(){
         Map<String, Object> body = new HashMap<>();
-        body.put("name", "java_doc_loader");
+        body.put("name", serverName);
         body.put("status", true);
         return new ResponseEntity<>(body, HttpStatus.OK);
     }
