@@ -37,6 +37,7 @@ public class DocOps {
 
         // Emit error Results as part of the stream and collect at the end
         // This is thread-safe and avoids synchronization overhead
+        // Added concurrency=20 for parallel processing
         return Flux.fromIterable(documents)
                 .flatMap(documentToInsert -> {
                   String k = documentToInsert.getT1();
@@ -45,7 +46,7 @@ public class DocOps {
                   return reactiveCollection.insert(k, v, insertOptions)
                           .then(Mono.<Result>empty())
                           .onErrorResume(error -> Mono.just(new Result(k, v, error, false)));
-                })
+                }, 20)
                 .collectList()
                 .block();
       }
@@ -56,6 +57,7 @@ public class DocOps {
 
         // Emit error Results as part of the stream and collect at the end
         // This is thread-safe and avoids synchronization overhead
+        // Added concurrency=20 for parallel processing
         return Flux.fromIterable(documents)
                 .flatMap(documentToInsert -> {
                   String k = documentToInsert.getT1();
@@ -64,7 +66,7 @@ public class DocOps {
                   return reactiveCollection.upsert(k, v, upsertOptions)
                           .then(Mono.<Result>empty())
                           .onErrorResume(error -> Mono.just(new Result(k, v, error, false)));
-                })
+                }, 20)
                 .collectList()
                 .block();
     }
@@ -86,7 +88,7 @@ public class DocOps {
                                     }
                                 });
                     }
-                }).collectList().block();
+                }, 20).collectList().block();
         return returnValue;
     }
 
@@ -95,12 +97,13 @@ public class DocOps {
 
         // Emit error Results as part of the stream and collect at the end
         // This is thread-safe and avoids synchronization overhead
+        // Added concurrency=20 for parallel processing
         return Flux.fromIterable(keys)
                 .flatMap(key -> {
                   return reactiveCollection.remove(key, removeOptions)
                           .then(Mono.<Result>empty())
                           .onErrorResume(error -> Mono.just(new Result(key, null, error, false)));
-                })
+                }, 20)
                 .collectList()
                 .block();
     }

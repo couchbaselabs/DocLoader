@@ -72,6 +72,9 @@ public class TaskRequest {
     private String scopeName;
     @JsonProperty("collection_name")
     private String collectionName;
+
+    @JsonProperty("collection_list")
+    private ArrayList<String> collectionList;
     // Create params
     @JsonProperty("create_percent")
     private int createPercent;
@@ -293,6 +296,10 @@ public class TaskRequest {
         System.out.println("Server: " + serverIP + ":" + serverPort);
         System.out.println("Creds: " + username + " / " + password);
         System.out.println("Bucket: " + bucketName + ":" + scopeName + ":" + collectionName);
+        if (this.collectionList != null && this.collectionList.size() > 1) {
+            System.out.println("Multi-Collection Mode: " + this.collectionList.size() + " collections");
+            System.out.println("Collections range: " + this.collectionList.get(0) + " to " + this.collectionList.get(this.collectionList.size() - 1));
+        }
         System.out.println("Key Type: " + keyType + ", Size: " + keySize + ", Prefix: '" + keyPrefix + "'");
         System.out.println("Doc Type: " + valueType + ", Size: " + docSize);
         System.out.println("---- Percent ----");
@@ -373,7 +380,7 @@ public class TaskRequest {
             TaskRequest.SDKClientPool.shutdown();
         TaskRequest.SDKClientPool = new SDKClientPool();
     }
-    
+
     private void reset_mongo_sdk_client_pool() {
         if (this.mongoClients != null) {
             for (MongoSDKClient client : this.mongoClients) {
@@ -602,6 +609,7 @@ public class TaskRequest {
     }
 
     public ResponseEntity<Map<String, Object>> doc_load() {
+        this.gtm = true;
         this.log_request();
         Map<String, Object> body = new HashMap<>();
         boolean okay = this.validate_doc_load_params();
@@ -678,16 +686,40 @@ public class TaskRequest {
         ArrayList<String> task_names = new ArrayList<String>();
         String task_name = "Task_" + TaskRequest.task_id.incrementAndGet();
         int retry = 0;
-        for (int i = 0; i < ws.workers; i++) {
-            String th_name = task_name + "_" + i;
-            WorkLoadGenerate wlg = new WorkLoadGenerate(th_name, dg, TaskRequest.SDKClientPool, esClient,
-                    this.durabilityLevel,
-                    this.docTTL, this.docTTLUnit, this.trackFailures,
-                    retry, null);
-            wlg.set_collection_for_load(this.bucketName, this.scopeName, this.collectionName);
-            TaskRequest.loader_tasks.put(th_name, wlg);
 
-            task_names.add(th_name);
+        boolean multiCollectionMode = (this.collectionList != null && this.collectionList.size() > 1);
+
+        if (multiCollectionMode) {
+            int collectionsPerWorker = Math.max(1, this.collectionList.size() / ws.workers);
+            for (int i = 0; i < ws.workers; i++) {
+                String th_name = task_name + "_" + i;
+                WorkLoadGenerate wlg = new WorkLoadGenerate(th_name, dg, TaskRequest.SDKClientPool, esClient,
+                        this.durabilityLevel,
+                        this.docTTL, this.docTTLUnit, this.trackFailures,
+                        retry, null);
+
+                int startIndex = i * collectionsPerWorker;
+                int endIndex = Math.min((i + 1) * collectionsPerWorker, this.collectionList.size());
+                ArrayList<String> workerCollections = new ArrayList<>(
+                    this.collectionList.subList(startIndex, endIndex));
+
+                wlg.set_collections_for_load(this.bucketName, this.scopeName, workerCollections);
+                TaskRequest.loader_tasks.put(th_name, wlg);
+
+                task_names.add(th_name);
+            }
+        } else {
+            for (int i = 0; i < ws.workers; i++) {
+                String th_name = task_name + "_" + i;
+                WorkLoadGenerate wlg = new WorkLoadGenerate(th_name, dg, TaskRequest.SDKClientPool, esClient,
+                        this.durabilityLevel,
+                        this.docTTL, this.docTTLUnit, this.trackFailures,
+                        retry, null);
+                wlg.set_collection_for_load(this.bucketName, this.scopeName, this.collectionName);
+                TaskRequest.loader_tasks.put(th_name, wlg);
+
+                task_names.add(th_name);
+            }
         }
         body.put("tasks", task_names);
         body.put("status", true);

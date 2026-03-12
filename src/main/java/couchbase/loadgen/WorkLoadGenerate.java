@@ -66,6 +66,10 @@ public class WorkLoadGenerate extends Task{
     public String bucket_name;
     public String scope = "_default";
     public String collection = "_default";
+    
+    private ArrayList<String> collectionList;
+    private int currentCollectionIndex = 0;
+    private boolean multiCollectionMode = false;
 
     private void update_subdoc_failed_mutation_result(
             String op_type,
@@ -167,6 +171,31 @@ public class WorkLoadGenerate extends Task{
         this.scope = scope;
         this.collection = collection;
     }
+    
+    public void set_collections_for_load(String bucket_name, String scope, ArrayList<String> collections) {
+        this.bucket_name = bucket_name;
+        this.scope = scope;
+        this.collectionList = collections;
+        this.multiCollectionMode = true;
+        this.collection = collections.get(0);
+    }
+    
+    private synchronized void switchToNextCollection(int docIndex) {
+        if (!multiCollectionMode || collectionList == null || collectionList.isEmpty()) {
+            return;
+        }
+        
+        if (sdk != null) {
+            int collectionsPerOp = dg.ws.ops / dg.ws.workers;
+            int collectionIndex = (docIndex / collectionsPerOp) % collectionList.size();
+            String newCollection = collectionList.get(collectionIndex);
+            
+            if (!newCollection.equals(sdk.collection)) {
+                sdk.selectCollection(scope, newCollection);
+                this.collection = newCollection;
+            }
+        }
+    }
 
     public void actual_run() {
         this.result = true;
@@ -229,6 +258,7 @@ public class WorkLoadGenerate extends Task{
                 // Instant en = Instant.now();
                 // System.out.println(this.taskName + " Time Taken to generate " + docs.size() + "docs: " + Duration.between(st, en).toMillis() + "ms");
                 if (docs.size()>0) {
+                    switchToNextCollection(ops);
                     flag = true;
                     if(this.dg.ws.elastic) {
                         this.esClient.insertDocs(this.collection.replace("_", ""), docs);
@@ -250,6 +280,7 @@ public class WorkLoadGenerate extends Task{
             if(dg.ws.updates > 0) {
                 List<Tuple2<String, Object>> docs = dg.nextUpdateBatch();
                 if (docs.size()>0) {
+                    switchToNextCollection(ops);
                     flag = true;
                     if(this.dg.ws.elastic) {
                         this.esClient.insertDocs(this.collection.replace("_", ""), docs);
@@ -271,6 +302,7 @@ public class WorkLoadGenerate extends Task{
             if(dg.ws.expiry > 0) {
                 List<Tuple2<String, Object>> docs = dg.nextExpiryBatch();
                 if (docs.size()>0) {
+                    switchToNextCollection(ops);
                     flag = true;
                     List<Result> result = new ArrayList<Result>();
                     if(this.sdk != null)
@@ -289,6 +321,7 @@ public class WorkLoadGenerate extends Task{
             if(dg.ws.deletes > 0) {
                 List<String> docs = dg.nextDeleteBatch();
                 if (docs.size()>0) {
+                    switchToNextCollection(ops);
                     flag = true;
                     List<Result> result = new ArrayList<Result>();
                     if(this.sdk != null)

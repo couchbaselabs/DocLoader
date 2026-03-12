@@ -3,6 +3,10 @@ package couchbase.sdk;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -10,105 +14,95 @@ import org.apache.log4j.Logger;
 
 public class SDKClientPool {
     static Logger logger = LogManager.getLogger(SDKClientPool.class);
-    public HashMap<String, HashMap> clients;
+    
+    public static class BucketPool {
+        private final ArrayList<SDKClient> allClients;
+        private final BlockingQueue<SDKClient> availableClients;
+        private final ReentrantLock lock;
+        
+        public BucketPool(int size) {
+            this.allClients = new ArrayList<>(size);
+            this.availableClients = new ArrayBlockingQueue<>(size);
+            this.lock = new ReentrantLock();
+        }
+    }
+    
+    public ConcurrentHashMap<String, BucketPool> clients;
 
     public SDKClientPool() {
         super();
-        this.clients = new HashMap<String, HashMap>();
+        this.clients = new ConcurrentHashMap<String, BucketPool>();
     }
 
     public void shutdown() {
         logger.debug("Closing clients from SDKClientPool");
-        ArrayList<SDKClient> sdk_clients;
-        for(Map.Entry<String, HashMap> m: this.clients.entrySet()){
-            sdk_clients = (ArrayList)(m.getValue()).get("idle_clients");
-            sdk_clients.addAll((ArrayList)m.getValue().get("busy_clients"));
-            for(SDKClient sdk_client: sdk_clients)
+        for(Map.Entry<String, BucketPool> entry: this.clients.entrySet()){
+            BucketPool pool = entry.getValue();
+            for(SDKClient sdk_client: pool.allClients)
                 sdk_client.disconnectCluster();
         }
-        // Reset the clients HM
-        this.clients = new HashMap<String, HashMap>();
+        this.clients.clear();
     }
 
     public void force_close_clients_for_bucket(String bucket_name) {
-        if (! this.clients.containsKey(bucket_name))
+        BucketPool pool = this.clients.get(bucket_name);
+        if (pool == null)
             return;
 
-        HashMap<String, Object> hm = this.clients.get(bucket_name);
-        ArrayList<SDKClient> sdk_clients;
-        sdk_clients = (ArrayList)(hm.get("idle_clients"));
-        sdk_clients.addAll((ArrayList)hm.get("busy_clients"));
-        for(SDKClient sdk_client: sdk_clients) {
-            sdk_client.disconnectCluster();
+        pool.lock.lock();
+        try {
+            for(SDKClient sdk_client: pool.allClients) {
+                sdk_client.disconnectCluster();
+            }
+            pool.allClients.clear();
+            pool.availableClients.clear();
+            this.clients.remove(bucket_name);
+        } finally {
+            pool.lock.unlock();
         }
-        this.clients.remove(bucket_name);
     }
 
     public void create_clients(String bucket_name, Server server, int req_clients) throws Exception {
-        HashMap<String, Object> bucket_hm;
-        if (this.clients.containsKey(bucket_name))
-            bucket_hm = this.clients.get(bucket_name);
-        else {
-            bucket_hm = new HashMap<String, Object>();
-            bucket_hm.put("lock", new Object());
-            bucket_hm.put("idle_clients", new ArrayList<SDKClient>());
-            bucket_hm.put("busy_clients", new ArrayList<SDKClient>());
-            this.clients.put(bucket_name, bucket_hm);
-        }
-
-        for(int i=0; i<req_clients; i++) {
-            SDKClient tem_client = new SDKClient(server, bucket_name);
-            tem_client.initialiseSDK();
-            ((ArrayList)bucket_hm.get("idle_clients")).add(tem_client);
+        BucketPool pool = this.clients.computeIfAbsent(bucket_name, k -> new BucketPool(req_clients));
+        
+        pool.lock.lock();
+        try {
+            for(int i=0; i<req_clients; i++) {
+                SDKClient tem_client = new SDKClient(server, bucket_name);
+                tem_client.initialiseSDK();
+                pool.allClients.add(tem_client);
+                pool.availableClients.offer(tem_client);
+            }
+        } finally {
+            pool.lock.unlock();
         }
     }
 
     public SDKClient get_client_for_bucket(String bucket_name, String scope, String collection) {
-        if (! this.clients.containsKey(bucket_name))
+        BucketPool pool = this.clients.get(bucket_name);
+        if (pool == null)
             return null;
 
-        SDKClient client = null;
-        String col_name = scope + collection;
-        HashMap<String, Object> col_hm;
-        HashMap<String, Object> hm = this.clients.get(bucket_name);
-        while (client == null) {
-            synchronized(hm.get("lock")) {
-                if (hm.containsKey(col_name)) {
-                    col_hm = (HashMap)hm.get(col_name);
-                    // Increment tasks' reference counter using this client object
-                    client = (SDKClient)col_hm.get("client");
-                    col_hm.replace("counter", (int)col_hm.get("counter")+1);
-                }
-                else if (! ((ArrayList)hm.get("idle_clients")).isEmpty()) {
-                    ArrayList idle_clients = (ArrayList)hm.get("idle_clients");
-                    client = (SDKClient)idle_clients.remove(idle_clients.size()-1);
+        try {
+            SDKClient client = null;
+            while (client == null) {
+                client = pool.availableClients.take();
+                if (client != null) {
                     client.selectCollection(scope, collection);
-                    ((ArrayList)hm.get("busy_clients")).add(client);
-                    // Create scope/collection reference using the client object
-                    col_hm = new HashMap<String, Object>();
-                    hm.put(col_name, col_hm);
-                    col_hm.put("client", client);
-                    col_hm.put("counter", 1);
                 }
             }
+            return client;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
         }
-        return client;
     }
 
     public void release_client(SDKClient client) {
-        if (! this.clients.containsKey(client.bucket))
+        BucketPool pool = this.clients.get(client.bucket);
+        if (pool == null)
             return;
 
-        HashMap<String, Object> hm = this.clients.get(client.bucket);
-        String col_name = client.scope + client.collection;
-        synchronized(hm.get("lock")) {
-            if ((int)((HashMap)hm.get(col_name)).get("counter") == 1) {
-                hm.remove(col_name);
-                ((ArrayList)hm.get("busy_clients")).remove(client);
-                ((ArrayList)hm.get("idle_clients")).add(client);
-            }
-            else
-                ((HashMap)hm.get(col_name)).replace("counter", (int)((HashMap)hm.get(col_name)).get("counter") - 1);
-        }
+        pool.availableClients.offer(client);
     }
 }
