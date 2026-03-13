@@ -29,6 +29,8 @@ public class SubDocOps {
                                                              List<Tuple2<String, List<MutateInSpec>>> mutateInSpecs,
                                                              MutateInOptions t_mutateInOptions) {
         final ReactiveCollection reactiveCollection = collection.reactive();
+        // Dynamic concurrency: use minimum of batch size and reasonable parallelism limit
+        int concurrency = Math.min(mutateInSpecs.size(), 20);
         List<HashMap<String, Object>> returnValue = Flux.fromIterable(mutateInSpecs)
                 .flatMap(new Function<Tuple2<String, List<MutateInSpec>>, Publisher<HashMap<String, Object>>>() {
                     public Publisher<HashMap<String, Object>> apply(Tuple2<String, List<MutateInSpec>> subDocOperations) {
@@ -55,7 +57,7 @@ public class SubDocOps {
                                     }
                                 });
                     }
-                }).subscribeOn(Schedulers.parallel()).collectList().block();
+                }, concurrency).subscribeOn(Schedulers.parallel()).collectList().block();
         return returnValue;
     }
 
@@ -63,6 +65,8 @@ public class SubDocOps {
                                                                 List<Tuple2<String, List<LookupInSpec>>> keys,
                                                                 LookupInOptions lookupInOptions) {
         final ReactiveCollection reactiveCollection = collection.reactive();
+        // Dynamic concurrency: use minimum of batch size and reasonable parallelism limit
+        int concurrency = Math.min(keys.size(), 20);
         List<HashMap<String, Object>> returnValue = Flux.fromIterable(keys)
             .flatMap(new Function<Tuple2<String, List<LookupInSpec>>, Publisher<HashMap<String, Object>>>() {
                 public Publisher<HashMap<String, Object>> apply(Tuple2<String, List<LookupInSpec>> subDocOperations) {
@@ -116,7 +120,7 @@ public class SubDocOps {
                             }
                         }).defaultIfEmpty(retVal);
                 }
-            }).subscribeOn(Schedulers.parallel()).collectList().block();
+            }, concurrency).subscribeOn(Schedulers.parallel()).collectList().block();
         return returnValue;
     }
 }
