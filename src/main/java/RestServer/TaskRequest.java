@@ -373,7 +373,7 @@ public class TaskRequest {
             TaskRequest.SDKClientPool.shutdown();
         TaskRequest.SDKClientPool = new SDKClientPool();
     }
-    
+
     private void reset_mongo_sdk_client_pool() {
         if (this.mongoClients != null) {
             for (MongoSDKClient client : this.mongoClients) {
@@ -502,7 +502,7 @@ public class TaskRequest {
         Map<String, Object> body = new HashMap<>();
         try {
             TaskRequest.taskManager.submit(TaskRequest.loader_tasks.get(this.taskName));
-            TimeUnit.MILLISECONDS.sleep(200);
+            TimeUnit.MILLISECONDS.sleep(5);
             body.put("status", true);
         } catch (Exception e) {
             body.put("status", false);
@@ -515,7 +515,7 @@ public class TaskRequest {
         Map<String, Object> body = new HashMap<>();
         try {
             TaskRequest.taskManager.submit(TaskRequest.mongo_loader_tasks.get(this.taskName));
-            TimeUnit.MILLISECONDS.sleep(200);
+            TimeUnit.MILLISECONDS.sleep(5);
             body.put("status", true);
         } catch (Exception e) {
             body.put("status", false);
@@ -702,7 +702,7 @@ public class TaskRequest {
         }
 
         // Calculate effective number of workers needed
-        int effectiveWorkers = Math.min(ws.workers, 
+        int effectiveWorkers = Math.min(ws.workers,
             (int)((totalDocsToProcess + docsPerWorker - 1) / docsPerWorker));  // ceil division
 
         System.out.println("Smart worker counting: Total docs=" + totalDocsToProcess +

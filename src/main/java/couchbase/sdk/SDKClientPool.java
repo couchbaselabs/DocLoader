@@ -1,8 +1,10 @@
 package couchbase.sdk;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ConcurrentModificationException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -10,108 +12,156 @@ import org.apache.log4j.Logger;
 
 public class SDKClientPool {
     static Logger logger = LogManager.getLogger(SDKClientPool.class);
-    public HashMap<String, HashMap> clients;
+    
+    // Thread-safe client collection cache
+    private ConcurrentHashMap<String, ClientInfo> clientCache = new ConcurrentHashMap<>();
+    
+    // Thread-safe client pools by bucket
+    private ConcurrentHashMap<String, ConcurrentLinkedQueue<SDKClient>> idleClients = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, ConcurrentLinkedQueue<SDKClient>> busyClients = new ConcurrentHashMap<>();
 
     public SDKClientPool() {
         super();
-        this.clients = new HashMap<String, HashMap>();
     }
 
     public void shutdown() {
         logger.debug("Closing clients from SDKClientPool and shutting down shared Cluster instances");
-        ArrayList<SDKClient> sdk_clients;
-        for(Map.Entry<String, HashMap> m: this.clients.entrySet()){
-            sdk_clients = (ArrayList)(m.getValue()).get("idle_clients");
-            sdk_clients.addAll((ArrayList)m.getValue().get("busy_clients"));
-            for(SDKClient sdk_client: sdk_clients)
-                sdk_client.disconnectCluster();
+        
+        // Process all buckets
+        for (String bucketName : idleClients.keySet()) {
+            ConcurrentLinkedQueue<SDKClient> idle = idleClients.get(bucketName);
+            ConcurrentLinkedQueue<SDKClient> busy = busyClients.get(bucketName);
+            
+            if (idle != null) {
+                for (SDKClient client : idle) {
+                    client.disconnectCluster();
+                }
+            }
+            if (busy != null) {
+                for (SDKClient client : busy) {
+                    client.disconnectCluster();
+                }
+            }
         }
-        // Reset the clients HM
-        this.clients = new HashMap<String, HashMap>();
+        
+        // Clear all data structures
+        clientCache.clear();
+        idleClients.clear();
+        busyClients.clear();
         
         // Shutdown shared Cluster manager
         SharedClusterManager.shutdownAll();
     }
 
     public void force_close_clients_for_bucket(String bucket_name) {
-        if (! this.clients.containsKey(bucket_name))
-            return;
-
-        HashMap<String, Object> hm = this.clients.get(bucket_name);
-        ArrayList<SDKClient> sdk_clients;
-        sdk_clients = (ArrayList)(hm.get("idle_clients"));
-        sdk_clients.addAll((ArrayList)hm.get("busy_clients"));
-        for(SDKClient sdk_client: sdk_clients) {
-            sdk_client.disconnectCluster();
+        ConcurrentLinkedQueue<SDKClient> idle = idleClients.get(bucket_name);
+        ConcurrentLinkedQueue<SDKClient> busy = busyClients.get(bucket_name);
+        
+        if (idle != null) {
+            for (SDKClient client : idle) {
+                client.disconnectCluster();
+            }
+            idleClients.remove(bucket_name);
         }
-        this.clients.remove(bucket_name);
+        
+        if (busy != null) {
+            for (SDKClient client : busy) {
+                client.disconnectCluster();
+            }
+            busyClients.remove(bucket_name);
+        }
     }
 
     public void create_clients(String bucket_name, Server server, int req_clients) throws Exception {
-        HashMap<String, Object> bucket_hm;
-        if (this.clients.containsKey(bucket_name))
-            bucket_hm = this.clients.get(bucket_name);
-        else {
-            bucket_hm = new HashMap<String, Object>();
-            bucket_hm.put("lock", new Object());
-            bucket_hm.put("idle_clients", new ArrayList<SDKClient>());
-            bucket_hm.put("busy_clients", new ArrayList<SDKClient>());
-            this.clients.put(bucket_name, bucket_hm);
-        }
-
-        for(int i=0; i<req_clients; i++) {
-            SDKClient tem_client = new SDKClient(server, bucket_name);
-            tem_client.initialiseSDK();
-            ((ArrayList)bucket_hm.get("idle_clients")).add(tem_client);
+        // Initialize thread-safe client pools for this bucket if not already present
+        idleClients.computeIfAbsent(bucket_name, k -> new ConcurrentLinkedQueue<>());
+        busyClients.computeIfAbsent(bucket_name, k -> new ConcurrentLinkedQueue<>());
+        
+        ConcurrentLinkedQueue<SDKClient> idlePool = idleClients.get(bucket_name);
+        
+        for (int i = 0; i < req_clients; i++) {
+            SDKClient client = new SDKClient(server, bucket_name);
+            client.initialiseSDK();
+            idlePool.add(client);
         }
     }
 
     public SDKClient get_client_for_bucket(String bucket_name, String scope, String collection) {
-        if (! this.clients.containsKey(bucket_name))
-            return null;
-
-        SDKClient client = null;
         String col_name = scope + collection;
-        HashMap<String, Object> col_hm;
-        HashMap<String, Object> hm = this.clients.get(bucket_name);
-        while (client == null) {
-            synchronized(hm.get("lock")) {
-                if (hm.containsKey(col_name)) {
-                    col_hm = (HashMap)hm.get(col_name);
-                    // Increment tasks' reference counter using this client object
-                    client = (SDKClient)col_hm.get("client");
-                    col_hm.replace("counter", (int)col_hm.get("counter")+1);
-                }
-                else if (! ((ArrayList)hm.get("idle_clients")).isEmpty()) {
-                    ArrayList idle_clients = (ArrayList)hm.get("idle_clients");
-                    client = (SDKClient)idle_clients.remove(idle_clients.size()-1);
-                    client.selectCollection(scope, collection);
-                    ((ArrayList)hm.get("busy_clients")).add(client);
-                    // Create scope/collection reference using the client object
-                    col_hm = new HashMap<String, Object>();
-                    hm.put(col_name, col_hm);
-                    col_hm.put("client", client);
-                    col_hm.put("counter", 1);
-                }
-            }
+        
+        // Check if client is already cached for this collection
+        ClientInfo existing = clientCache.get(col_name);
+        if (existing != null) {
+            existing.counter.incrementAndGet();
+            return existing.client;
         }
+        
+        // Get idle client pool for this bucket
+        ConcurrentLinkedQueue<SDKClient> idlePool = idleClients.get(bucket_name);
+        if (idlePool == null || idlePool.isEmpty()) {
+            return null;
+        }
+        
+        // Get client from idle pool atomically
+        SDKClient client = idlePool.poll();
+        if (client == null) {
+            return null;
+        }
+        
+        // Configure client for this collection
+        client.selectCollection(scope, collection);
+        
+        // Add to busy pool atomically
+        busyClients.computeIfAbsent(bucket_name, k -> new ConcurrentLinkedQueue<>()).add(client);
+        
+        // Cache client reference with thread-safe counter
+        clientCache.put(col_name, new ClientInfo(client, new AtomicInteger(1)));
+        
         return client;
     }
 
     public void release_client(SDKClient client) {
-        if (! this.clients.containsKey(client.bucket))
+        if (client == null || client.bucket == null) {
             return;
-
-        HashMap<String, Object> hm = this.clients.get(client.bucket);
+        }
+        
+        String bucket_key = client.bucket;
         String col_name = client.scope + client.collection;
-        synchronized(hm.get("lock")) {
-            if ((int)((HashMap)hm.get(col_name)).get("counter") == 1) {
-                hm.remove(col_name);
-                ((ArrayList)hm.get("busy_clients")).remove(client);
-                ((ArrayList)hm.get("idle_clients")).add(client);
+        
+        // Get cached client info
+        ClientInfo info = clientCache.get(col_name);
+        if (info == null) {
+            return;
+        }
+        
+        // Decrement counter atomically
+        int newCount = info.counter.decrementAndGet();
+        
+        if (newCount == 0) {
+            // Remove from cache atomically
+            clientCache.remove(col_name);
+            
+            // Remove from busy pool and add to idle pool atomically
+            ConcurrentLinkedQueue<SDKClient> busyPool = busyClients.get(bucket_key);
+            ConcurrentLinkedQueue<SDKClient> idlePool = idleClients.get(bucket_key);
+            
+            if (busyPool != null) {
+                busyPool.remove(client);
             }
-            else
-                ((HashMap)hm.get(col_name)).replace("counter", (int)((HashMap)hm.get(col_name)).get("counter") - 1);
+            if (idlePool != null) {
+                idlePool.add(client);
+            }
+        }
+    }
+    
+    // Helper class for cached client info with thread-safe counter
+    private static class ClientInfo {
+        SDKClient client;
+        AtomicInteger counter;
+        
+        ClientInfo(SDKClient client, AtomicInteger counter) {
+            this.client = client;
+            this.counter = counter;
         }
     }
 }

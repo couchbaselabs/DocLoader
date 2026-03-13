@@ -23,17 +23,17 @@ import com.couchbase.client.java.env.ClusterEnvironment;
  */
 public class SharedClusterManager {
     private static Logger logger = LogManager.getLogger(SharedClusterManager.class);
-    
+
     // Common KV connections setting for massively parallel collection loads
     // Increased from default 5 to 500 to support 5,000 collections loading in parallel
-    private static final int DEFAULT_KV_CONNECTIONS = 500;
-    
+    private static final int DEFAULT_KV_CONNECTIONS = 5;
+
     // Shared ClusterEnvironment with optimized connection settings
     private static ClusterEnvironment sharedEnvironment;
-    
+
     // Store cluster instances per server connection string
     private static ConcurrentHashMap<String, ClusterWrapper> clusterMap = new ConcurrentHashMap<>();
-    
+
     // Initialize the shared environment once (lazy initialization)
     private static void initializeSharedEnvironment() {
         if (sharedEnvironment == null) {
@@ -51,7 +51,7 @@ public class SharedClusterManager {
             }
         }
     }
-    
+
     /**
      * Get or create a shared Cluster instance for the given server connection
      */
@@ -72,19 +72,19 @@ public class SharedClusterManager {
 
         return wrapper.cluster;
     }
-    
+
     /**
      * Release reference to the shared Cluster instance
      */
     public static synchronized void releaseCluster(Server server) {
         String clusterKey = getClusterKey(server);
         ClusterWrapper wrapper = clusterMap.get(clusterKey);
-        
+
         if (wrapper != null) {
             int refCount = wrapper.decrementRefCount();
-            logger.debug("Released Cluster instance for server: " + server.ip + 
+            logger.debug("Released Cluster instance for server: " + server.ip +
                         " (ref count: " + refCount + ")");
-            
+
             if (refCount == 0) {
                 logger.info("No more references, disconnecting Cluster for server: " + server.ip);
                 wrapper.cluster.disconnect();
@@ -92,7 +92,7 @@ public class SharedClusterManager {
             }
         }
     }
-    
+
     /**
      * Shutdown all cluster instances and the shared environment
      */
@@ -110,7 +110,7 @@ public class SharedClusterManager {
             logger.info("Shared Cluster Environment shutdown complete");
         }
     }
-    
+
     private static Cluster createCluster(Server server) throws AuthenticationFailureException {
         ClusterOptions clusterOptions;
         try {
@@ -121,12 +121,12 @@ public class SharedClusterManager {
                 clusterOptions = ClusterOptions.clusterOptions(server.rest_username, server.rest_password)
                         .environment(createNonTLSEnvironment());
             }
-            
+
             Cluster cluster = Cluster.connect(server.ip, clusterOptions);
             logger.info("Cluster connection successful: " + server.ip);
             return cluster;
         } catch (AuthenticationFailureException e) {
-            logger.error("Authentication failed for server: " + server.ip + 
+            logger.error("Authentication failed for server: " + server.ip +
                         " with user: " + server.rest_username);
             throw e;
         } catch (Exception e) {
@@ -134,7 +134,7 @@ public class SharedClusterManager {
             throw new RuntimeException("Cluster connection failed", e);
         }
     }
-    
+
     private static ClusterEnvironment createNonTLSEnvironment() {
         return ClusterEnvironment.builder()
                 .timeoutConfig(TimeoutConfig.builder().kvTimeout(Duration.ofSeconds(10)))
@@ -142,31 +142,31 @@ public class SharedClusterManager {
                 .ioConfig(IoConfig.numKvConnections(DEFAULT_KV_CONNECTIONS))
                 .build();
     }
-    
+
     private static String getClusterKey(Server server) {
         return server.ip + ":" + server.memcached_port;
     }
-    
+
     /**
      * Wrapper class to track reference count for shared Cluster instances
      */
     private static class ClusterWrapper {
         Cluster cluster;
         AtomicInteger refCount;
-        
+
         ClusterWrapper(Cluster cluster) {
             this.cluster = cluster;
             this.refCount = new AtomicInteger(1);
         }
-        
+
         void incrementRefCount() {
             refCount.incrementAndGet();
         }
-        
+
         int decrementRefCount() {
             return refCount.decrementAndGet();
         }
-        
+
         int getRefCount() {
             return refCount.get();
         }
