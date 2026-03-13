@@ -1,7 +1,5 @@
 package couchbase.sdk;
 
-import java.util.ArrayList;
-import java.util.ConcurrentModificationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
