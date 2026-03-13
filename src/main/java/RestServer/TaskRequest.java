@@ -702,7 +702,7 @@ public class TaskRequest {
         }
 
         // Calculate effective number of workers needed
-        int effectiveWorkers = Math.min(ws.workers, 
+        int effectiveWorkers = Math.min(ws.workers,
             (int)((totalDocsToProcess + docsPerWorker - 1) / docsPerWorker));  // ceil division
 
         System.out.println("Smart worker counting: Total docs=" + totalDocsToProcess +
