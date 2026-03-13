@@ -72,13 +72,9 @@ public class SDKClient {
 
     public void connectCluster(){
         try{
-            ClusterOptions cluster_options;
-            if(this.master.memcached_port.equals("11207"))
-                cluster_options = ClusterOptions.clusterOptions(master.rest_username, master.rest_password).environment(env1);
-            else
-                cluster_options = ClusterOptions.clusterOptions(master.rest_username, master.rest_password).environment(env2);
-            this.cluster = Cluster.connect(master.ip, cluster_options);
-            logger.info("Cluster connection is successful");
+            // Use shared Cluster instance instead of creating new one
+            this.cluster = SharedClusterManager.getCluster(this.master);
+            logger.info("Cluster connection is successful (using shared instance)");
         }
         catch (AuthenticationFailureException e) {
             logger.info(String.format("cannot login from user: %s/%s",master.rest_username, master.rest_password));
@@ -86,13 +82,14 @@ public class SDKClient {
     }
 
     public void disconnectCluster(){
-        // Disconnect and close all buckets
-        this.cluster.disconnect();
+        // Release reference to shared Cluster instead of disconnecting
+        SharedClusterManager.releaseCluster(this.master);
+        logger.info("Released shared Cluster instance reference");
     }
 
     public void shutdownEnv() {
-        // Just close an environment
-        this.cluster.environment().shutdown();
+        // No-op - Shared Cluster environment is managed by SharedClusterManager
+        logger.debug("shutdownEnv called on shared Cluster - no-op");
     }
 
     private void connectBucket(String bucket){

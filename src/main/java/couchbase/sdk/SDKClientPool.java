@@ -18,7 +18,7 @@ public class SDKClientPool {
     }
 
     public void shutdown() {
-        logger.debug("Closing clients from SDKClientPool");
+        logger.debug("Closing clients from SDKClientPool and shutting down shared Cluster instances");
         ArrayList<SDKClient> sdk_clients;
         for(Map.Entry<String, HashMap> m: this.clients.entrySet()){
             sdk_clients = (ArrayList)(m.getValue()).get("idle_clients");
@@ -28,6 +28,9 @@ public class SDKClientPool {
         }
         // Reset the clients HM
         this.clients = new HashMap<String, HashMap>();
+        
+        // Shutdown shared Cluster manager
+        SharedClusterManager.shutdownAll();
     }
 
     public void force_close_clients_for_bucket(String bucket_name) {

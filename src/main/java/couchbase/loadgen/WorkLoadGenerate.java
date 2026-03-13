@@ -388,13 +388,15 @@ public class WorkLoadGenerate extends Task{
             ops = 0;
             Instant end = Instant.now();
             timeElapsed = Duration.between(start, end);
-            if(!this.dg.ws.gtm && timeElapsed.toMillis() < 1000)
-                try {
-                    long i =  (long) ((1000-timeElapsed.toMillis()));
-                    TimeUnit.MILLISECONDS.sleep(i);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
+            // THROTTLE LOGIC REMOVED FOR TESTING PURPOSES
+        // Python frameworks runs continuous ops, so no 1-second pacing needed
+        // if(!this.dg.ws.gtm && timeElapsed.toMillis() < 1000)
+        //    try {
+        //        long i =  (long) ((1000-timeElapsed.toMillis()));
+        //        TimeUnit.MILLISECONDS.sleep(i);
+        //    } catch (InterruptedException e) {
+        //        e.printStackTrace();
+        //    }
         }
         logger.info(this.taskName + " is completed!");
         if (retryTimes > 0 && failedMutations.size() > 0) {

@@ -678,7 +678,40 @@ public class TaskRequest {
         ArrayList<String> task_names = new ArrayList<String>();
         String task_name = "Task_" + TaskRequest.task_id.incrementAndGet();
         int retry = 0;
-        for (int i = 0; i < ws.workers; i++) {
+
+        // Calculate total number of documents to process across all operation types
+        long totalDocsToProcess = (this.createEndIndex - this.createStartIndex) +
+                                 (this.updateEndIndex - this.updateStartIndex) +
+                                 (this.readEndIndex - this.readStartIndex) +
+                                 (this.deleteEndIndex - this.deleteStartIndex) +
+                                 (this.expiryEndIndex - this.expiryStartIndex);
+
+        // Calculate how many documents each worker would process
+        // Based on the batch calculation in WorkLoadGenerate: ops = batchSize * operation_percent/100
+        int docsPerWorker = ws.batchSize * (
+            (this.createPercent > 0 ? this.createPercent : 0) +
+            (this.updatePercent > 0 ? this.updatePercent : 0) +
+            (this.readPercent > 0 ? this.readPercent : 0) +
+            (this.deletePercent > 0 ? this.deletePercent : 0) +
+            (this.expiryPercent > 0 ? this.expiryPercent : 0)
+        ) / 100;
+
+        // Handle edge case where docsPerWorker might be 0
+        if (docsPerWorker == 0) {
+            docsPerWorker = 1;  // Minimum of 1 doc per worker to avoid division by zero
+        }
+
+        // Calculate effective number of workers needed
+        int effectiveWorkers = Math.min(ws.workers, 
+            (int)((totalDocsToProcess + docsPerWorker - 1) / docsPerWorker));  // ceil division
+
+        System.out.println("Smart worker counting: Total docs=" + totalDocsToProcess +
+                          ", Docs per worker=" + docsPerWorker +
+                          ", Requested workers=" + ws.workers +
+                          ", Effective workers=" + effectiveWorkers);
+
+        // Only spawn effective workers
+        for (int i = 0; i < effectiveWorkers; i++) {
             String th_name = task_name + "_" + i;
             WorkLoadGenerate wlg = new WorkLoadGenerate(th_name, dg, TaskRequest.SDKClientPool, esClient,
                     this.durabilityLevel,
