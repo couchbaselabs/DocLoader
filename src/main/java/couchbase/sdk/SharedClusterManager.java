@@ -56,6 +56,7 @@ public class SharedClusterManager {
      * Get or create a shared Cluster instance for the given server connection
      */
     public static synchronized Cluster getCluster(Server server) throws AuthenticationFailureException {
+        initializeSharedEnvironment();
         String clusterKey = getClusterKey(server);
 
         ClusterWrapper wrapper = clusterMap.get(clusterKey);
