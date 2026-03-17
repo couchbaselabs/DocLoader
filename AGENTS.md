@@ -11,6 +11,7 @@ This project uses specialized AI agents to maintain code quality and architectur
 ### Orchestration Logic
 * **If** the user asks for thread, doc_key. document generator related code -> **Handoff to:** `The Architect`.
 * **If** the user asks for Couchbase Sirius or REST based loader related code → **Handoff to:** `The CBRestLoader`.
+* **If** the user asks for batch processing, shared cluster management, or massive collection load optimization → **Handoff to:** `The CBRestLoader` with focus on `SharedClusterManager` and `CollectionLoadBatcher`.
 * **If** the user asks for Couchbase command line loader related code → **Handoff to:** `The CBCmdlineLoader`.
 * **If** the user asks for a Mongo related code → **Handoff to:** `The MongoCoder`.
 
