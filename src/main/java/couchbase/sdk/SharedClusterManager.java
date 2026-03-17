@@ -31,23 +31,38 @@ public class SharedClusterManager {
     // Shared ClusterEnvironment with optimized connection settings
     private static ClusterEnvironment sharedEnvironment;
 
+    // Track whether environment has been shutdown
+    private static volatile boolean environmentShutdown = false;
+
+    private static final Object environmentLock = new Object();
+
     // Store cluster instances per server connection string
     private static ConcurrentHashMap<String, ClusterWrapper> clusterMap = new ConcurrentHashMap<>();
 
-    // Initialize the shared environment once (lazy initialization)
+    // Initialize the shared environment (lazy initialization with recreation)
     private static void initializeSharedEnvironment() {
-        if (sharedEnvironment == null) {
-            try {
-                sharedEnvironment = ClusterEnvironment.builder()
-                        .timeoutConfig(TimeoutConfig.builder().kvTimeout(Duration.ofSeconds(10)))
-                        .securityConfig(SecurityConfig.enableTls(true)
-                                .trustManagerFactory(InsecureTrustManagerFactory.INSTANCE))
-                        .ioConfig(IoConfig.enableDnsSrv(true))
-                        .ioConfig(IoConfig.numKvConnections(DEFAULT_KV_CONNECTIONS))
-                        .build();
-                logger.info("Shared Cluster Environment initialized with " + DEFAULT_KV_CONNECTIONS + " KV connections for massively parallel collection loads");
-            } catch (Exception e) {
-                logger.error("Failed to initialize shared Cluster Environment", e);
+        if (sharedEnvironment == null || environmentShutdown) {
+            synchronized (environmentLock) {
+                // Double-check under lock
+                if (sharedEnvironment == null || environmentShutdown) {
+                    try {
+                        if (sharedEnvironment != null && environmentShutdown) {
+                            logger.info("Shared Cluster Environment was shutdown, recreating");
+                        }
+                        
+                        sharedEnvironment = ClusterEnvironment.builder()
+                                .timeoutConfig(TimeoutConfig.builder().kvTimeout(Duration.ofSeconds(10)))
+                                .securityConfig(SecurityConfig.enableTls(true)
+                                        .trustManagerFactory(InsecureTrustManagerFactory.INSTANCE))
+                                .ioConfig(IoConfig.enableDnsSrv(true))
+                                .ioConfig(IoConfig.numKvConnections(DEFAULT_KV_CONNECTIONS))
+                                .build();
+                        environmentShutdown = false;
+                        logger.info("Shared Cluster Environment initialized with " + DEFAULT_KV_CONNECTIONS + " KV connections for massively parallel collection loads");
+                    } catch (Exception e) {
+                        logger.error("Failed to initialize shared Cluster Environment", e);
+                    }
+                }
             }
         }
     }
@@ -108,6 +123,7 @@ public class SharedClusterManager {
 
         if (sharedEnvironment != null) {
             sharedEnvironment.shutdown();
+            environmentShutdown = true;
             logger.info("Shared Cluster Environment shutdown complete");
         }
     }
