@@ -59,8 +59,10 @@ public class SDKClientPool {
         for(int i=0; i<req_clients; i++) {
             SDKClient tem_client = new SDKClient(server, bucket_name);
             tem_client.initialiseSDK();
+            logger.info("Created SDK client #" + (i+1) + " with bucket: " + bucket_name);
             ((ArrayList)bucket_hm.get("idle_clients")).add(tem_client);
         }
+        logger.info("SDK Client Pool initialized with " + req_clients + " clients for bucket: " + bucket_name);
     }
 
     public SDKClient get_client_for_bucket(String bucket_name, String scope, String collection) {

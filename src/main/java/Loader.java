@@ -17,6 +17,7 @@ import org.apache.log4j.Logger;
 import couchbase.loadgen.WorkLoadGenerate;
 import couchbase.sdk.SDKClient;
 import couchbase.sdk.Server;
+import couchbase.sdk.SDKClientPool;
 import elasticsearch.EsClient;
 import utils.docgen.DRConstants;
 import utils.docgen.DocRange;
@@ -145,7 +146,7 @@ public class Loader {
         Option validate = new Option("validate", "validate", true, "Validate Data during Reads");
         options.addOption(validate);
 
-        Option gtm = new Option("gtm", "gtm", true, "Go for max doc ops");
+        Option gtm = new Option("gtm", "gtm", true, "Go for max doc ops (disables rate limiting)");
         options.addOption(gtm);
 
         Option deleted = new Option("deleted", "deleted", true, "To verify deleted docs");
@@ -290,8 +291,10 @@ public class Loader {
         } catch (ClassNotFoundException e1) {
             e1.printStackTrace();
         }
-        SDKClient client = new SDKClient(master, cmd.getOptionValue("bucket"), cmd.getOptionValue("scope", "_default"),
-                cmd.getOptionValue("collection", "_default"));
+        // Create SDK client pool with 5 client instances for connection isolation
+        // 5 pools × 200 connections per client = 1,000 total KV connections
+        // Each pool handles 6-7 workers (32 workers / 5 pools)
+        SDKClientPool clientPool = new SDKClientPool();
         EsClient esClient = null;
         if (ws.elastic) {
             if (cmd.getOptionValue(esAPIKey.getOpt()) != null){
@@ -303,9 +306,14 @@ public class Loader {
         }
 
         try {
-            client.initialiseSDK();
+            // Create 5 client instances in the pool
+            int numClients = 5;
+            clientPool.create_clients(cmd.getOptionValue("bucket"), master, numClients);
+            logger.info("Created SDK Client Pool with " + numClients + " client instances");
         } catch (Exception e) {
             e.printStackTrace();
+            logger.error("Failed to create SDK Client Pool", e);
+            System.exit(1);
         }
         for (int i = 0; i < ws.workers; i++) {
             try {
@@ -313,19 +321,25 @@ public class Loader {
                 boolean _trackFailures = Boolean.parseBoolean(cmd.getOptionValue("trackFailures", "false"));
                 if (Integer.parseInt(cmd.getOptionValue("retry", "0")) > 0)
                     _trackFailures = true;
-                tm.submit(new WorkLoadGenerate(th_name, dg, client, esClient, cmd.getOptionValue("durability", "NONE"),
+                WorkLoadGenerate wlg = new WorkLoadGenerate(th_name, dg, clientPool, esClient, cmd.getOptionValue("durability", "NONE"),
                         Integer.parseInt(cmd.getOptionValue("maxTTL", "0")),
                         cmd.getOptionValue("maxTTLUnit", "seconds"), _trackFailures,
-                        Integer.parseInt(cmd.getOptionValue("retry", "0")), null));
-                TimeUnit.MILLISECONDS.sleep(500);
+                        Integer.parseInt(cmd.getOptionValue("retry", "0")), null);
+                wlg.set_collection_for_load(
+                            cmd.getOptionValue("bucket"),
+                            cmd.getOptionValue("scope", "_default"),
+                            cmd.getOptionValue("collection", "_default"));
+                // Reduced startup delay from 500ms to 50ms for faster ramp-up
+                // With 32 workers: 15.5s → 1.55s startup time
+                tm.submit(wlg);
+                TimeUnit.MILLISECONDS.sleep(50);
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
         tm.getAllTaskResult();
         tm.shutdown();
-        client.disconnectCluster();
-        client.shutdownEnv();
+        clientPool.shutdown();
         if (ws.elastic && esClient != null) {
             try {
                 esClient.restClient.close();

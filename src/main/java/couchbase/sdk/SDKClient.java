@@ -27,21 +27,9 @@ public class SDKClient {
 
     private Bucket bucketObj;
     private Cluster cluster;
+    private ClusterEnvironment environment;
 
     public Collection connection;
-
-    public static ClusterEnvironment env1 = ClusterEnvironment.builder()
-            .timeoutConfig(TimeoutConfig.builder().kvTimeout(Duration.ofSeconds(10)))
-            .securityConfig(SecurityConfig.enableTls(true)
-            .trustManagerFactory(InsecureTrustManagerFactory.INSTANCE))
-            .ioConfig(IoConfig.enableDnsSrv(true))
-            .ioConfig(IoConfig.numKvConnections(5))
-            .build();
-
-    public static ClusterEnvironment env2 = ClusterEnvironment.builder()
-            .timeoutConfig(TimeoutConfig.builder().kvTimeout(Duration.ofSeconds(10)))
-            .ioConfig(IoConfig.enableDnsSrv(true)).ioConfig(IoConfig.numKvConnections(5))
-            .build();
 
     public SDKClient(Server master, String bucket, String scope, String collection) {
         super();
@@ -72,11 +60,28 @@ public class SDKClient {
 
     public void connectCluster(){
         try{
+            // Create per-instance environment for proper connection isolation
+            // Each SDKClient gets its own connection pool
             ClusterOptions cluster_options;
-            if(this.master.memcached_port.equals("11207"))
-                cluster_options = ClusterOptions.clusterOptions(master.rest_username, master.rest_password).environment(env1);
-            else
-                cluster_options = ClusterOptions.clusterOptions(master.rest_username, master.rest_password).environment(env2);
+            if(this.master.memcached_port.equals("11207")) {
+                this.environment = ClusterEnvironment.builder()
+                        .timeoutConfig(TimeoutConfig.builder().kvTimeout(Duration.ofSeconds(10)))
+                        .securityConfig(SecurityConfig.enableTls(true)
+                        .trustManagerFactory(InsecureTrustManagerFactory.INSTANCE))
+                        .ioConfig(IoConfig.enableDnsSrv(true))
+                        .ioConfig(IoConfig.numKvConnections(200))  // 200 per client instance
+                        .ioConfig(IoConfig.configPollInterval(Duration.ofSeconds(10)))
+                        .build();
+                cluster_options = ClusterOptions.clusterOptions(master.rest_username, master.rest_password).environment(this.environment);
+            } else {
+                this.environment = ClusterEnvironment.builder()
+                        .timeoutConfig(TimeoutConfig.builder().kvTimeout(Duration.ofSeconds(10)))
+                        .ioConfig(IoConfig.enableDnsSrv(true))
+                        .ioConfig(IoConfig.numKvConnections(200))  // 200 per client instance
+                        .ioConfig(IoConfig.configPollInterval(Duration.ofSeconds(10)))
+                        .build();
+                cluster_options = ClusterOptions.clusterOptions(master.rest_username, master.rest_password).environment(this.environment);
+            }
             this.cluster = Cluster.connect(master.ip, cluster_options);
             logger.info("Cluster connection is successful");
         }
@@ -91,8 +96,10 @@ public class SDKClient {
     }
 
     public void shutdownEnv() {
-        // Just close an environment
-        this.cluster.environment().shutdown();
+        // Close the per-instance environment
+        if (this.environment != null) {
+            this.environment.shutdown();
+        }
     }
 
     private void connectBucket(String bucket){
