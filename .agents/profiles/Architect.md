@@ -24,17 +24,23 @@ graph TD
   elasticsearch[src/main/java/elasticsearch] -->|Defines Requirements| ARCH[The Architect]
   Mongo[src/main/java/mongo] -->|Defines Requirements| ARCH[The Architect]
   Utils-->|Defines Requirements| ARCH[The Architect]
+  RestServer-->|Defines Requirements| ARCH[The Architect]
   LoaderJava[src/main/java/Loader.java] -->|Invokes| Couchbase
   MongoLoaderJava[src/main/java/MongoLoader.java] -->|Invokes| Mongo
   SIFTLoaderJava[src/main/java/SIFTLoader.java] -->|Invokes| elasticsearch
   RestServer-->|Utilizes| Couchbase
   RestServer-->|Utilizes| Mongo
   RestServer-->|Utilizes| Utils
+  RestServer/SharedClusterManager -->|Manages| Couchbase/sdk
+  RestServer/CollectionLoadBatcher -->|Coordinates| RestServer/TaskRequest
   Couchbase-->|Uses| Utils
+  Couchbase/sdk/SDKClientPool -->|Uses| Couchbase/sdk/SharedClusterManager
   Mongo-->|Uses| Utils
   elasticsearch-->|Uses| Utils
   Utils-->|Utilized by| Couchbase
   Utils-->|Utilized by| Mongo
   Utils-->|Utilized by| elasticsearch
   Utils-->|Utilized by| RestServer
+  Couchbase/sdk/SharedClusterManager -->|Optimizes| Cluster Connections
+  RestServer/CollectionLoadBatcher -->|Optimizes| Multi-Collection Loads
 ```

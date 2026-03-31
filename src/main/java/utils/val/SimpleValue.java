@@ -35,11 +35,16 @@ public class SimpleValue {
         }
 
         this.randomString = String.valueOf(str_buf);
+        this.randomStringLength = this.randomString.length();
+        // Use StringBuilder for memory-efficient string building vs repeated concat loop
+        // Even though we allocate upfront, this is O(n) memory vs O(n²) for concat loop
+        int targetLength = ws.docSize;
+        StringBuilder sb = new StringBuilder(targetLength);
         String temp = this.randomString;
-        this.randomStringLength = randomString.length();
-        for (int i = 0; i < ws.docSize/this.randomStringLength+2; i++) {
-            this.randomString = this.randomString.concat(temp);
+        while (sb.length() < targetLength) {
+            sb.append(temp);
         }
+        this.randomString = sb.toString();
         this.randomStringLength = this.randomString.length();
     }
 
@@ -51,8 +56,16 @@ public class SimpleValue {
         return "";
     }
 
+    private static final ThreadLocal<Random> randomTL = new ThreadLocal<Random>() {
+        @Override
+        protected Random initialValue() {
+            return new Random();
+        }
+    };
+
     public Person next(String key) {
-        Random random_obj = new Random();
+        // Use ThreadLocal Random to avoid creating new objects per call
+        Random random_obj = randomTL.get();
         random_obj.setSeed(key.hashCode());
         Person person = new Person(this.get_random_string(key, 100, random_obj), this.get_int(random_obj), this.get_animals(random_obj),
                 new Attributes(this.get_colour(random_obj), new Dimensions(this.get_int(random_obj), this.get_int(random_obj)),
