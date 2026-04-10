@@ -51,6 +51,11 @@ public class WorkLoadSettings extends WorkLoadBase {
     public int dim;
     public boolean base64;
     public String baseVectorsFilePath;
+    public String embeddingFilePath;
+    public String embeddingS3Path;
+    public String embeddingPresignedUrl;
+    public String embeddingType = "sparse";
+    public String embeddingFormat = "jsonl_sparse";
 
     /**** Constructors ****/
     public WorkLoadSettings(String keyPrefix,
@@ -87,6 +92,7 @@ public class WorkLoadSettings extends WorkLoadBase {
         this.mutation_timeout = mutation_timeout;
         this.base64 = base64;
         this.baseVectorsFilePath = baseVectorsFilePath;
+        this.embeddingFilePath = baseVectorsFilePath;
     };
 
     public WorkLoadSettings(String keyPrefix,
