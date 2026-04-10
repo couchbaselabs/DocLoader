@@ -451,9 +451,22 @@ public class WorkLoadGenerate extends Task{
 
     @Override
     public void run() {
-        if (this.sdkClientPool != null)
-            this.sdk = this.sdkClientPool.get_client_for_bucket(
-                this.bucket_name, this.scope, this.collection);
+        if (this.sdkClientPool != null) {
+            while (this.sdk == null) {
+                this.sdk = this.sdkClientPool.get_client_for_bucket(
+                    this.bucket_name, this.scope, this.collection);
+                if (this.sdk == null) {
+                    try {
+                        TimeUnit.SECONDS.sleep(1);
+                    } catch (InterruptedException e) {
+                        logger.error("Interrupted while waiting for SDK client", e);
+                        Thread.currentThread().interrupt();
+                        this.result = false;
+                        return;
+                    }
+                }
+            }
+        }
         try {
             this.actual_run();
         }
