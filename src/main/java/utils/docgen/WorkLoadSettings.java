@@ -52,7 +52,6 @@ public class WorkLoadSettings extends WorkLoadBase {
     public boolean base64;
     public String baseVectorsFilePath;
     public String embeddingFilePath;
-    public String embeddingS3Path;
     public String embeddingPresignedUrl;
     public String embeddingType = "sparse";
     public String embeddingFormat = "jsonl_sparse";

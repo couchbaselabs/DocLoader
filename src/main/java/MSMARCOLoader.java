@@ -16,7 +16,6 @@ import org.apache.log4j.Logger;
 import couchbase.loadgen.WorkLoadGenerate;
 import couchbase.sdk.SDKClientPool;
 import couchbase.sdk.Server;
-import elasticsearch.EsClient;
 import utils.docgen.DRConstants;
 import utils.docgen.DocRange;
 import utils.docgen.DocumentGenerator;
@@ -100,14 +99,6 @@ public class MSMARCOLoader {
         options.addOption(new Option("siftFilePath", true, "Path to SIFT bigann_base.bvecs file (required for MSMARCOSiftEmbeddingProduct)"));
         options.addOption(new Option("valueType", true, "Value type to generate (default MSMARCOEmbeddingProduct)"));
 
-        Option elastic = new Option("elastic", "elastic", true, "Flag to insert data in ElasticSearch cluster");
-        options.addOption(elastic);
-        Option esServer = new Option("esServer", "esServer", true, "ElasticSearch cluster");
-        options.addOption(esServer);
-        Option esAPIKey = new Option("esAPIKey", "esAPIKey", true, "ElasticSearch APIKey");
-        options.addOption(esAPIKey);
-        Option esSimilarity = new Option("esSimilarity", "esSimilarity", true, "ElasticSearch esSimilarity");
-        options.addOption(esSimilarity);
         Option skipCB = new Option("skipCB", "skipCB", true, "Skip loading data into Couchbase");
         options.addOption(skipCB);
 
@@ -152,18 +143,6 @@ public class MSMARCOLoader {
             }
         }
 
-        EsClient esClient = null;
-        if (Boolean.parseBoolean(cmd.getOptionValue("elastic", "false"))) {
-            if (cmd.getOptionValue("esAPIKey") != null)
-                esClient = new EsClient(cmd.getOptionValue("esServer"), cmd.getOptionValue("esAPIKey"));
-            if (esClient != null) {
-                esClient.initializeSDK();
-                esClient.deleteESIndex(cmd.getOptionValue("collection", "_default").replace("_", ""));
-                esClient.createESIndex(cmd.getOptionValue("collection", "_default").replace("_", ""),
-                        cmd.getOptionValue("esSimilarity", "l2_norm"), null);
-            }
-        }
-
         // Use the same step ranges as MSMARCOEmbeddingProduct
         long[] steps = MSMARCOEmbeddingProduct.getSteps();
         int poolSize = Integer.parseInt(cmd.getOptionValue("workers", "10"));
@@ -178,6 +157,9 @@ public class MSMARCOLoader {
             start_offset = Long.parseLong(cmd.getOptionValue(DRConstants.expiry_s, "0"));
             end_offset = Long.parseLong(cmd.getOptionValue(DRConstants.expiry_e, "0"));
         }
+
+        if (start_offset < steps[0] || start_offset >= steps[steps.length - 1])
+            throw new IllegalArgumentException("start_offset " + start_offset + " is outside STEPS bounds [" + steps[0] + ", " + steps[steps.length - 1] + ")");
 
         // Find which step range contains start_offset
         int k = 0;
@@ -209,7 +191,7 @@ public class MSMARCOLoader {
                         Boolean.parseBoolean(cmd.getOptionValue("gtm", "false")),
                         Boolean.parseBoolean(cmd.getOptionValue("deleted", "false")),
                         Integer.parseInt(cmd.getOptionValue("mutate", "0")),
-                        Boolean.parseBoolean(cmd.getOptionValue("elastic", "false")),
+                        false,
                         cmd.getOptionValue("model", ""),
                         false,
                         0,
@@ -253,7 +235,7 @@ public class MSMARCOLoader {
                     boolean trackFailures = false;
                     if (Integer.parseInt(cmd.getOptionValue("retry", "0")) > 0)
                         trackFailures = true;
-                    WorkLoadGenerate wlg = new WorkLoadGenerate(th_name, dg, clientPool, esClient,
+                    WorkLoadGenerate wlg = new WorkLoadGenerate(th_name, dg, clientPool, null,
                             cmd.getOptionValue("durability", "NONE"),
                             Integer.parseInt(cmd.getOptionValue("maxTTL", "0")),
                             cmd.getOptionValue("maxTTLUnit", "seconds"), trackFailures,
@@ -272,7 +254,5 @@ public class MSMARCOLoader {
         }
         tm.getAllTaskResult();
         tm.shutdown();
-        if (esClient != null)
-            esClient.transport.close();
     }
 }

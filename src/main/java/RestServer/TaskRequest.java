@@ -951,8 +951,12 @@ public class TaskRequest {
         }
 
         ArrayList<String> task_names = new ArrayList<String>();
-        long step = (end_offset - start_offset) / poolSize;
-        for (int i = 0; i < poolSize; i++) {
+        long totalDocs = end_offset - start_offset;
+        if (totalDocs <= 0)
+            throw new IllegalArgumentException("No docs to process: start_offset=" + start_offset + " end_offset=" + end_offset);
+        int effectivePool = (int) Math.min(poolSize, totalDocs);
+        long step = totalDocs / effectivePool;
+        for (int i = 0; i < effectivePool; i++) {
             WorkLoadSettings ws = new WorkLoadSettings(this.keyPrefix,
                     this.keySize, this.docSize,
                     this.createPercent, this.readPercent,
@@ -967,21 +971,23 @@ public class TaskRequest {
                     ? this.baseVectorsFilePath
                     : this.vecFilePath;
 
-            HashMap<String, Number> dr = new HashMap<String, Number>();
-            dr.put(DRConstants.create_s, start_offset + step * i);
-            dr.put(DRConstants.create_e, start_offset + step * (i + 1));
+            long workerStart = start_offset + step * i;
+            long workerEnd = (i == effectivePool - 1) ? end_offset : start_offset + step * (i + 1);
+            HashMap<String, Number> dr = new HashMap<>();
+            dr.put(DRConstants.create_s, workerStart);
+            dr.put(DRConstants.create_e, workerEnd);
             dr.put(DRConstants.read_s, this.readStartIndex);
             dr.put(DRConstants.read_e, this.readEndIndex);
-            dr.put(DRConstants.update_s, start_offset + step * i);
-            dr.put(DRConstants.update_e, start_offset + step * (i + 1));
+            dr.put(DRConstants.update_s, workerStart);
+            dr.put(DRConstants.update_e, workerEnd);
             dr.put(DRConstants.delete_s, this.deleteStartIndex);
             dr.put(DRConstants.delete_e, this.deleteEndIndex);
             dr.put(DRConstants.touch_s, this.touchStartIndex);
             dr.put(DRConstants.touch_e, this.touchEndIndex);
             dr.put(DRConstants.replace_s, this.replaceStartIndex);
             dr.put(DRConstants.replace_e, this.replaceEndIndex);
-            dr.put(DRConstants.expiry_s, start_offset + step * i);
-            dr.put(DRConstants.expiry_e, start_offset + step * (i + 1));
+            dr.put(DRConstants.expiry_s, workerStart);
+            dr.put(DRConstants.expiry_e, workerEnd);
 
             DocRange range = new DocRange(dr);
             DocumentGenerator dg = null;
