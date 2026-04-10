@@ -546,9 +546,12 @@ public class TaskRequest {
     public ResponseEntity<Map<String, Object>> get_task_result() {
         Map<String, Object> body = new HashMap<>();
         WorkLoadGenerate task = TaskRequest.loader_tasks.get(this.taskName);
+        System.out.println("[DEBUG] get_task_result called for task: " + this.taskName);
+        System.out.println("[DEBUG] Task exists: " + (task != null));
         if (task != null) {
             Map<String, Object> failures = new HashMap<>();
             boolean okay = TaskRequest.taskManager.getTaskResult(task);
+            System.out.println("[DEBUG] TaskManager.getTaskResult returned: " + okay);
             TaskRequest.loader_tasks.remove(this.taskName);
             for (HashMap.Entry<String, List<Result>> optype : task.failedMutations.entrySet()) {
                 optype.getValue().forEach(
@@ -567,10 +570,13 @@ public class TaskRequest {
             }
             body.put("fail", failures);
             body.put("status", okay);
+            System.out.println("[DEBUG] Returning body with status: " + okay + ", fail dict: " + failures);
         } else {
             body.put("error", "Task " + this.taskName + " does not exists");
             body.put("status", false);
+            System.out.println("[DEBUG] Task " + this.taskName + " does not exist");
         }
+        System.out.println("[DEBUG] Final body: " + body);
         return new ResponseEntity<>(body, HttpStatus.OK);
     }
 
