@@ -454,6 +454,11 @@ public class WorkLoadGenerate extends Task{
         if (this.sdkClientPool != null)
             this.sdk = this.sdkClientPool.get_client_for_bucket(
                 this.bucket_name, this.scope, this.collection);
+        // If SDK client is null, mark task as failed and return
+        if (this.sdk == null) {
+            this.result = false;
+            return;
+        }
         try {
             this.actual_run();
         }
