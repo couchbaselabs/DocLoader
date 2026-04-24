@@ -214,6 +214,8 @@ public class TaskRequest {
     private String baseVectorsFilePath;
     @JsonProperty("sift_url")
     private String siftURL;
+    @JsonProperty("vec_file_path")
+    private String vecFilePath;
 
     // Used by add_new_task(), get_task_result(), stop_task(), cancel_task()
     @JsonProperty("task_id")
@@ -894,6 +896,115 @@ public class TaskRequest {
                 task_names.add(th_name);
             }
             k += 1;
+        }
+
+        body.put("tasks", task_names);
+        body.put("status", true);
+        return new ResponseEntity<>(body, HttpStatus.OK);
+    }
+
+    public ResponseEntity<Map<String, Object>> loadMSMARCODataset() throws IOException {
+        this.log_request();
+        Map<String, Object> body = new HashMap<>();
+        boolean okay = this.validate_doc_load_params();
+        if (!okay) {
+            body.put("error", "Param validation failed");
+            return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        }
+        if (this.vecFilePath == null || this.vecFilePath.trim().isEmpty()) {
+            body.put("error", "vec_file_path is required for MSMARCO loading");
+            return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        }
+        String msmarcoValueType = (this.valueType == null || this.valueType.trim().isEmpty())
+                ? "MSMARCOEmbeddingProduct"
+                : this.valueType.trim();
+        if ("MSMARCOSiftEmbeddingProduct".equals(msmarcoValueType)
+                && (this.baseVectorsFilePath == null || this.baseVectorsFilePath.trim().isEmpty())) {
+            body.put("error", "base_vectors_file_path is required for MSMARCOSiftEmbeddingProduct");
+            return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        }
+
+        EsClient esClient = null;
+        if (this.elastic && this.esServer != null && this.esAPIKey != null) {
+            esClient = new EsClient(this.esServer, this.esAPIKey);
+            esClient.initializeSDK();
+            esClient.deleteESIndex(this.collectionName.replace("_", ""));
+            try {
+                esClient.createESIndex(this.collectionName.replace("_", ""),
+                        this.esSimilarity, null);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        int poolSize = this.processConcurrency;
+        long start_offset = 0, end_offset = 0;
+        if (this.createPercent > 0) {
+            start_offset = this.createStartIndex;
+            end_offset = this.createEndIndex;
+        } else if (this.updatePercent > 0) {
+            start_offset = this.updateStartIndex;
+            end_offset = this.updateEndIndex;
+        } else if (this.expiryPercent > 0) {
+            start_offset = this.expiryStartIndex;
+            end_offset = this.expiryEndIndex;
+        }
+
+        ArrayList<String> task_names = new ArrayList<String>();
+        long step = (end_offset - start_offset) / poolSize;
+        for (int i = 0; i < poolSize; i++) {
+            WorkLoadSettings ws = new WorkLoadSettings(this.keyPrefix,
+                    this.keySize, this.docSize,
+                    this.createPercent, this.readPercent,
+                    this.updatePercent, this.deletePercent, this.expiryPercent, this.processConcurrency,
+                    this.ops, this.loadType, this.keyType, msmarcoValueType,
+                    this.validateDocs, this.gtm, this.validateDeletedDocs, this.mutate,
+                    this.elastic, this.model, this.mockVector,
+                    this.dim, this.base64, this.mutateField,
+                    this.mutationTimeout, this.vecFilePath);
+            ws.embeddingFilePath = this.vecFilePath;
+            ws.baseVectorsFilePath = "MSMARCOSiftEmbeddingProduct".equals(msmarcoValueType)
+                    ? this.baseVectorsFilePath
+                    : this.vecFilePath;
+
+            HashMap<String, Number> dr = new HashMap<String, Number>();
+            dr.put(DRConstants.create_s, start_offset + step * i);
+            dr.put(DRConstants.create_e, start_offset + step * (i + 1));
+            dr.put(DRConstants.read_s, this.readStartIndex);
+            dr.put(DRConstants.read_e, this.readEndIndex);
+            dr.put(DRConstants.update_s, start_offset + step * i);
+            dr.put(DRConstants.update_e, start_offset + step * (i + 1));
+            dr.put(DRConstants.delete_s, this.deleteStartIndex);
+            dr.put(DRConstants.delete_e, this.deleteEndIndex);
+            dr.put(DRConstants.touch_s, this.touchStartIndex);
+            dr.put(DRConstants.touch_e, this.touchEndIndex);
+            dr.put(DRConstants.replace_s, this.replaceStartIndex);
+            dr.put(DRConstants.replace_e, this.replaceEndIndex);
+            dr.put(DRConstants.expiry_s, start_offset + step * i);
+            dr.put(DRConstants.expiry_e, start_offset + step * (i + 1));
+
+            DocRange range = new DocRange(dr);
+            DocumentGenerator dg = null;
+
+            ws.dr = range;
+            try {
+                dg = new DocumentGenerator(ws, ws.keyType, ws.valueType);
+            } catch (Exception e) {
+                body.put("error", "Failed to create doc generator");
+                body.put("message", e.toString());
+                return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+            }
+
+            String task_name = "MSMARCOTask_" + TaskRequest.task_id.incrementAndGet() + "_" + ws.dr.create_s + "_"
+                    + ws.dr.create_e;
+            int retry = 0;
+            String th_name = task_name + "_" + i;
+            WorkLoadGenerate wlg = new WorkLoadGenerate(th_name, dg, TaskRequest.SDKClientPool, esClient,
+                    this.durabilityLevel,
+                    this.docTTL, this.docTTLUnit, this.trackFailures, retry, null);
+            wlg.set_collection_for_load(this.bucketName, this.scopeName, this.collectionName);
+            TaskRequest.loader_tasks.put(th_name, wlg);
+            task_names.add(th_name);
         }
 
         body.put("tasks", task_names);

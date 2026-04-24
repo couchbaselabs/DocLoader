@@ -28,6 +28,8 @@ import utils.val.SimpleValue;
 import utils.val.SimpleSubDocValue;
 import utils.val.Vector;
 import utils.val.anySizeValue;
+import utils.val.MSMARCOEmbeddingProduct;
+import utils.val.MSMARCOSiftEmbeddingProduct;
 import utils.val.siftBigANN;
 
 import com.couchbase.client.java.kv.LookupInSpec;
@@ -160,6 +162,10 @@ abstract class KVGenerator{
             this.valInstance = Product.class;
         else if (valClass.equals(siftBigANN.class.getSimpleName()))
             this.valInstance = siftBigANN.class;
+        else if (valClass.equals(MSMARCOEmbeddingProduct.class.getSimpleName()))
+            this.valInstance = MSMARCOEmbeddingProduct.class;
+        else if (valClass.equals(MSMARCOSiftEmbeddingProduct.class.getSimpleName()))
+            this.valInstance = MSMARCOSiftEmbeddingProduct.class;
         else if (valClass.equals(SimpleSubDocValue.class.getSimpleName()))
             this.valInstance = SimpleSubDocValue.class;
         else if (valClass.equals(RandomlyNestedJson.class.getSimpleName()))

@@ -1,7 +1,5 @@
 package couchbase.sdk;
 
-import java.util.ArrayList;
-import java.util.ConcurrentModificationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -87,10 +85,10 @@ public class SDKClientPool {
     }
 
     public SDKClient get_client_for_bucket(String bucket_name, String scope, String collection) {
-        String cache_key = bucket_name + ":" + scope + ":" + collection;
-
+        String col_name = scope + collection;
+        
         // Check if client is already cached for this collection
-        ClientInfo existing = clientCache.get(cache_key);
+        ClientInfo existing = clientCache.get(col_name);
         if (existing != null) {
             existing.counter.incrementAndGet();
             return existing.client;
@@ -115,7 +113,7 @@ public class SDKClientPool {
         busyClients.computeIfAbsent(bucket_name, k -> new ConcurrentLinkedQueue<>()).add(client);
         
         // Cache client reference with thread-safe counter
-        clientCache.put(cache_key, new ClientInfo(client, new AtomicInteger(1)));
+        clientCache.put(col_name, new ClientInfo(client, new AtomicInteger(1)));
         
         return client;
     }
@@ -124,22 +122,22 @@ public class SDKClientPool {
         if (client == null || client.bucket == null) {
             return;
         }
-
+        
         String bucket_key = client.bucket;
-        String cache_key = bucket_key + ":" + client.scope + ":" + client.collection;
-
+        String col_name = client.scope + client.collection;
+        
         // Get cached client info
-        ClientInfo info = clientCache.get(cache_key);
+        ClientInfo info = clientCache.get(col_name);
         if (info == null) {
             return;
         }
-
+        
         // Decrement counter atomically
         int newCount = info.counter.decrementAndGet();
-
+        
         if (newCount == 0) {
             // Remove from cache atomically
-            clientCache.remove(cache_key);
+            clientCache.remove(col_name);
             
             // Remove from busy pool and add to idle pool atomically
             ConcurrentLinkedQueue<SDKClient> busyPool = busyClients.get(bucket_key);
