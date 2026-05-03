@@ -697,7 +697,8 @@ public class TaskRequest {
             (this.updatePercent > 0 ? this.updatePercent : 0) +
             (this.readPercent > 0 ? this.readPercent : 0) +
             (this.deletePercent > 0 ? this.deletePercent : 0) +
-            (this.expiryPercent > 0 ? this.expiryPercent : 0)
+            (this.expiryPercent > 0 ? this.expiryPercent : 0) +
+            (this.subdocPercent > 0 ? this.subdocPercent : 0)
         ) / 100;
 
         // Handle edge case where docsPerWorker might be 0

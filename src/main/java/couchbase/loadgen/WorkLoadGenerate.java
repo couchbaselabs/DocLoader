@@ -82,10 +82,12 @@ public class WorkLoadGenerate extends Task{
         }
 
         for(HashMap<String, Object> sd_res : sd_results) {
-            result_arr.add(new Result((String)sd_res.get("id"),
-                                      sd_res.get("value"),
-                                      (Throwable)sd_res.get("error"),
-                                      (boolean)sd_res.get("status")));
+            if (!(boolean)sd_res.get("status")) {
+                result_arr.add(new Result((String)sd_res.get("id"),
+                                          sd_res.get("value"),
+                                          (Throwable)sd_res.get("error"),
+                                          false));
+            }
         }
     }
 
