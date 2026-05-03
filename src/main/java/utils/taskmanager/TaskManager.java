@@ -47,17 +47,31 @@ public class TaskManager {
     }
 
     public boolean getTaskResult(Task task) {
+        Future future = this.tasks.get(task.taskName);
+        if (future == null) {
+            System.out.println("Task '" + task.taskName + "' not found in task manager. "
+                    + "It may not have been submitted or was already consumed.");
+            task.result = false;
+            return false;
+        }
         try {
-            this.tasks.get(task.taskName).get();
+            future.get();
             this.tasks.remove(task.taskName);
         } catch (InterruptedException | ExecutionException e) {
             e.printStackTrace();
+            this.tasks.remove(task.taskName);
         }
         return task.result;
     }
 
     public void abortTask(Task task) {
-        this.tasks.get(task.taskName).cancel(true);
+        Future future = this.tasks.get(task.taskName);
+        if (future != null) {
+            future.cancel(true);
+        } else {
+            System.out.println("Task '" + task.taskName + "' not found during abort. "
+                    + "It may not have been submitted or was already consumed.");
+        }
     }
 
     public void abortAllTasks() {

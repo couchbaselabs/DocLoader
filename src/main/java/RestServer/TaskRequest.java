@@ -386,7 +386,8 @@ public class TaskRequest {
     private void init_taskmanager() {
         TaskRequest.taskManager = new TaskManager(this.num_workers);
         System.out.println("Init TaskManager workers=" + this.num_workers);
-        this.reset_sdk_client_pool();
+        // Note: SDK client pool is already reset in shutdown_taskmanager(),
+        // no need to reset again here (avoid double shutdownAll() call)
         this.reset_mongo_sdk_client_pool();
     }
 
@@ -501,7 +502,13 @@ public class TaskRequest {
     public ResponseEntity<Map<String, Object>> submit_task() {
         Map<String, Object> body = new HashMap<>();
         try {
-            TaskRequest.taskManager.submit(TaskRequest.loader_tasks.get(this.taskName));
+            WorkLoadGenerate task = TaskRequest.loader_tasks.get(this.taskName);
+            if (task == null) {
+                body.put("status", false);
+                body.put("error", "Task " + this.taskName + " does not exist in loader_tasks");
+                return new ResponseEntity<>(body, HttpStatus.OK);
+            }
+            TaskRequest.taskManager.submit(task);
             TimeUnit.MILLISECONDS.sleep(5);
             body.put("status", true);
         } catch (Exception e) {
@@ -514,7 +521,13 @@ public class TaskRequest {
     public ResponseEntity<Map<String, Object>> submit_task_mongo() {
         Map<String, Object> body = new HashMap<>();
         try {
-            TaskRequest.taskManager.submit(TaskRequest.mongo_loader_tasks.get(this.taskName));
+            mongo.loadgen.WorkLoadGenerate task = TaskRequest.mongo_loader_tasks.get(this.taskName);
+            if (task == null) {
+                body.put("status", false);
+                body.put("error", "Task " + this.taskName + " does not exist in mongo_loader_tasks");
+                return new ResponseEntity<>(body, HttpStatus.OK);
+            }
+            TaskRequest.taskManager.submit(task);
             TimeUnit.MILLISECONDS.sleep(5);
             body.put("status", true);
         } catch (Exception e) {
@@ -529,7 +542,12 @@ public class TaskRequest {
         try {
             mongo.loadgen.WorkLoadGenerate task = TaskRequest.mongo_loader_tasks.get(this.taskName);
         if (task != null) {
-            boolean okay = TaskRequest.taskManager.getTaskResult(task);
+            boolean okay = false;
+            try {
+                okay = TaskRequest.taskManager.getTaskResult(task);
+            } catch (Exception e) {
+                body.put("error", "Exception during getTaskResult: " + e.toString());
+            }
             body.put("status", okay);
         } else {
             body.put("error", "Task " + this.taskName + " does not exists");
@@ -548,7 +566,12 @@ public class TaskRequest {
         WorkLoadGenerate task = TaskRequest.loader_tasks.get(this.taskName);
         if (task != null) {
             Map<String, Object> failures = new HashMap<>();
-            boolean okay = TaskRequest.taskManager.getTaskResult(task);
+            boolean okay = false;
+            try {
+                okay = TaskRequest.taskManager.getTaskResult(task);
+            } catch (Exception e) {
+                body.put("error", "Exception during getTaskResult: " + e.toString());
+            }
             TaskRequest.loader_tasks.remove(this.taskName);
             for (HashMap.Entry<String, List<Result>> optype : task.failedMutations.entrySet()) {
                 optype.getValue().forEach(

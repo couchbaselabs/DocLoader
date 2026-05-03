@@ -17,6 +17,7 @@ import com.couchbase.client.core.deps.com.fasterxml.jackson.annotation.JsonAutoD
 import com.couchbase.client.core.deps.com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.couchbase.client.core.deps.com.fasterxml.jackson.core.JsonProcessingException;
 import com.couchbase.client.core.deps.com.fasterxml.jackson.databind.ObjectMapper;
+import com.couchbase.client.core.msg.kv.DurabilityLevel;
 import com.couchbase.client.core.error.DocumentExistsException;
 import com.couchbase.client.core.error.DocumentNotFoundException;
 import com.couchbase.client.core.error.ServerOutOfMemoryException;
@@ -179,31 +180,50 @@ public class WorkLoadGenerate extends Task{
         this.dg.ws.setDurabilityLevel(this.durability);
         this.dg.ws.setRetryStrategy(this.retryStrategy);
 
-        upsertOptions = UpsertOptions.upsertOptions()
+        // When DurabilityLevel.NONE is explicitly set, the SDK sends durability_level=0
+        // in the KV protocol frame, which tells the server "client explicitly wants no
+        // durability" and may override the bucket-level durability setting.
+        // To let the server enforce bucket-level durability, we must NOT call
+        // .durability() when the level is NONE - this omits the durability field
+        // from the request entirely, allowing the server to apply its own level.
+        boolean useClientDurability = this.dg.ws.durability != null
+                && this.dg.ws.durability != DurabilityLevel.NONE;
+
+        UpsertOptions upsertOpts = UpsertOptions.upsertOptions()
                 .timeout(this.dg.ws.timeout)
-                .durability(this.dg.ws.durability)
                 .retryStrategy(this.dg.ws.retryStrategy);
-        expiryOptions = InsertOptions.insertOptions()
+        if (useClientDurability) upsertOpts = upsertOpts.durability(this.dg.ws.durability);
+        upsertOptions = upsertOpts;
+
+        InsertOptions expiryOpts = InsertOptions.insertOptions()
                 .timeout(this.dg.ws.timeout)
-                .durability(this.dg.ws.durability)
                 .expiry(this.dg.ws.getDuration(this.exp, this.exp_unit))
                 .retryStrategy(this.dg.ws.retryStrategy);
-        setOptions = InsertOptions.insertOptions()
+        if (useClientDurability) expiryOpts = expiryOpts.durability(this.dg.ws.durability);
+        expiryOptions = expiryOpts;
+
+        InsertOptions setOpts = InsertOptions.insertOptions()
                 .timeout(this.dg.ws.timeout)
-                .durability(this.dg.ws.durability)
                 .retryStrategy(this.dg.ws.retryStrategy);
-        removeOptions = RemoveOptions.removeOptions()
+        if (useClientDurability) setOpts = setOpts.durability(this.dg.ws.durability);
+        setOptions = setOpts;
+
+        RemoveOptions removeOpts = RemoveOptions.removeOptions()
                 .timeout(this.dg.ws.timeout)
-                .durability(this.dg.ws.durability)
                 .retryStrategy(this.dg.ws.retryStrategy);
+        if (useClientDurability) removeOpts = removeOpts.durability(this.dg.ws.durability);
+        removeOptions = removeOpts;
+
         getOptions = GetOptions.getOptions()
                 .timeout(this.dg.ws.timeout)
                 .retryStrategy(this.dg.ws.retryStrategy);
-        mutateInOptions = MutateInOptions.mutateInOptions()
+
+        MutateInOptions mutateOpts = MutateInOptions.mutateInOptions()
                 .expiry(this.dg.ws.getDuration(this.exp, this.exp_unit))
                 .timeout(this.dg.ws.timeout)
-                .durability(this.dg.ws.durability)
                 .retryStrategy(this.dg.ws.retryStrategy);
+        if (useClientDurability) mutateOpts = mutateOpts.durability(this.dg.ws.durability);
+        mutateInOptions = mutateOpts;
         lookupInOptions = LookupInOptions.lookupInOptions();
 
         if(dg.ws.expiry == 0) {
@@ -454,9 +474,15 @@ public class WorkLoadGenerate extends Task{
     @Override
     public void run() {
         if (this.sdkClientPool != null) {
-            while (this.sdk == null) {
-                this.sdk = this.sdkClientPool.get_client_for_bucket(
-                    this.bucket_name, this.scope, this.collection);
+            int retries = 0;
+            while (this.sdk == null && retries < 30) {
+                try {
+                    this.sdk = this.sdkClientPool.get_client_for_bucket(
+                        this.bucket_name, this.scope, this.collection);
+                } catch (Exception e) {
+                    logger.error("Error getting SDK client from pool for bucket "
+                            + this.bucket_name + ": " + e.getMessage());
+                }
                 if (this.sdk == null) {
                     try {
                         TimeUnit.SECONDS.sleep(1);
@@ -466,14 +492,25 @@ public class WorkLoadGenerate extends Task{
                         this.result = false;
                         return;
                     }
+                    retries++;
                 }
+            }
+            if (this.sdk == null) {
+                logger.error("Failed to acquire SDK client for bucket "
+                        + this.bucket_name + " after " + retries + " retries");
+                this.result = false;
+                return;
             }
         }
         try {
             this.actual_run();
         }
+        catch (Exception e) {
+            logger.error("Unhandled exception in task " + this.taskName + ": " + e.getMessage(), e);
+            this.result = false;
+        }
         finally{
-            if (this.sdkClientPool != null)
+            if (this.sdkClientPool != null && this.sdk != null)
                 this.sdkClientPool.release_client(this.sdk);
         }
     }
