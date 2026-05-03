@@ -684,7 +684,11 @@ public class TaskRequest {
                                  (this.updateEndIndex - this.updateStartIndex) +
                                  (this.readEndIndex - this.readStartIndex) +
                                  (this.deleteEndIndex - this.deleteStartIndex) +
-                                 (this.expiryEndIndex - this.expiryStartIndex);
+                                 (this.expiryEndIndex - this.expiryStartIndex) +
+                                 (this.sdInsertEndIndex - this.sdInsertStartIndex) +
+                                 (this.sdUpsertEndIndex - this.sdUpsertStartIndex) +
+                                 (this.sdRemoveEndIndex - this.sdRemoveStartIndex) +
+                                 (this.sdReadEndIndex - this.sdReadStartIndex);
 
         // Calculate how many documents each worker would process
         // Based on the batch calculation in WorkLoadGenerate: ops = batchSize * operation_percent/100
