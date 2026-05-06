@@ -733,6 +733,12 @@ public class TaskRequest {
         int effectiveWorkers = Math.min(ws.workers,
             (int)((totalDocsToProcess + docsPerWorker - 1) / docsPerWorker));  // ceil division
 
+        // When ops_rate >> totalDocsToProcess, the ceil division above collapses to 1 even if
+        // multiple workers were requested. Ensure we use at least min(ws.workers, totalDocsToProcess)
+        // workers so concurrency-dependent tests (e.g. dedupe-disable) are not silently serialized.
+        int minWorkers = (int) Math.min(ws.workers, totalDocsToProcess);
+        effectiveWorkers = Math.max(effectiveWorkers, minWorkers);
+
         System.out.println("Smart worker counting: Total docs=" + totalDocsToProcess +
                           ", Docs per worker=" + docsPerWorker +
                           ", Requested workers=" + ws.workers +
