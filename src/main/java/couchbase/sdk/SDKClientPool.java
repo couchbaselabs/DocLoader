@@ -1,9 +1,8 @@
 package couchbase.sdk;
 
-import java.util.ArrayList;
-import java.util.ConcurrentModificationException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.log4j.LogManager;
@@ -16,9 +15,12 @@ public class SDKClientPool {
     // Thread-safe client collection cache
     private ConcurrentHashMap<String, ClientInfo> clientCache = new ConcurrentHashMap<>();
     
+    // Block up to this long waiting for an idle client before giving up
+    private static final int CLIENT_WAIT_TIMEOUT_MINUTES = 30;
+
     // Thread-safe client pools by bucket
-    private ConcurrentHashMap<String, ConcurrentLinkedQueue<SDKClient>> idleClients = new ConcurrentHashMap<>();
-    private ConcurrentHashMap<String, ConcurrentLinkedQueue<SDKClient>> busyClients = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, LinkedBlockingQueue<SDKClient>> idleClients = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, LinkedBlockingQueue<SDKClient>> busyClients = new ConcurrentHashMap<>();
 
     public SDKClientPool() {
         super();
@@ -29,8 +31,8 @@ public class SDKClientPool {
         
         // Process all buckets
         for (String bucketName : idleClients.keySet()) {
-            ConcurrentLinkedQueue<SDKClient> idle = idleClients.get(bucketName);
-            ConcurrentLinkedQueue<SDKClient> busy = busyClients.get(bucketName);
+            LinkedBlockingQueue<SDKClient> idle = idleClients.get(bucketName);
+            LinkedBlockingQueue<SDKClient> busy = busyClients.get(bucketName);
             
             if (idle != null) {
                 for (SDKClient client : idle) {
@@ -54,8 +56,8 @@ public class SDKClientPool {
     }
 
     public void force_close_clients_for_bucket(String bucket_name) {
-        ConcurrentLinkedQueue<SDKClient> idle = idleClients.get(bucket_name);
-        ConcurrentLinkedQueue<SDKClient> busy = busyClients.get(bucket_name);
+        LinkedBlockingQueue<SDKClient> idle = idleClients.get(bucket_name);
+        LinkedBlockingQueue<SDKClient> busy = busyClients.get(bucket_name);
         
         if (idle != null) {
             for (SDKClient client : idle) {
@@ -74,11 +76,11 @@ public class SDKClientPool {
 
     public void create_clients(String bucket_name, Server server, int req_clients) throws Exception {
         // Initialize thread-safe client pools for this bucket if not already present
-        idleClients.computeIfAbsent(bucket_name, k -> new ConcurrentLinkedQueue<>());
-        busyClients.computeIfAbsent(bucket_name, k -> new ConcurrentLinkedQueue<>());
+        idleClients.computeIfAbsent(bucket_name, k -> new LinkedBlockingQueue<>());
+        busyClients.computeIfAbsent(bucket_name, k -> new LinkedBlockingQueue<>());
         
-        ConcurrentLinkedQueue<SDKClient> idlePool = idleClients.get(bucket_name);
-        
+        LinkedBlockingQueue<SDKClient> idlePool = idleClients.get(bucket_name);
+
         for (int i = 0; i < req_clients; i++) {
             SDKClient client = new SDKClient(server, bucket_name);
             client.initialiseSDK();
@@ -86,7 +88,8 @@ public class SDKClientPool {
         }
     }
 
-    public SDKClient get_client_for_bucket(String bucket_name, String scope, String collection) {
+    public SDKClient get_client_for_bucket(String bucket_name, String scope, String collection)
+            throws InterruptedException {
         String cache_key = bucket_name + ":" + scope + ":" + collection;
 
         // Check if client is already cached for this collection
@@ -95,28 +98,32 @@ public class SDKClientPool {
             existing.counter.incrementAndGet();
             return existing.client;
         }
-        
+
         // Get idle client pool for this bucket
-        ConcurrentLinkedQueue<SDKClient> idlePool = idleClients.get(bucket_name);
-        if (idlePool == null || idlePool.isEmpty()) {
+        LinkedBlockingQueue<SDKClient> idlePool = idleClients.get(bucket_name);
+        if (idlePool == null) {
             return null;
         }
-        
-        // Get client from idle pool atomically
-        SDKClient client = idlePool.poll();
+
+        // Block until a client becomes available or timeout expires.
+        // With 200-300 threads sharing a finite pool, spinning with a fixed retry cap
+        // causes spurious failures on long-running loads — blocking here is cheaper and correct.
+        SDKClient client = idlePool.poll(CLIENT_WAIT_TIMEOUT_MINUTES, TimeUnit.MINUTES);
         if (client == null) {
+            logger.error("Timed out waiting " + CLIENT_WAIT_TIMEOUT_MINUTES
+                    + " min for idle SDK client for bucket " + bucket_name);
             return null;
         }
-        
+
         // Configure client for this collection
         client.selectCollection(scope, collection);
-        
+
         // Add to busy pool atomically
-        busyClients.computeIfAbsent(bucket_name, k -> new ConcurrentLinkedQueue<>()).add(client);
-        
+        busyClients.computeIfAbsent(bucket_name, k -> new LinkedBlockingQueue<>()).add(client);
+
         // Cache client reference with thread-safe counter
         clientCache.put(cache_key, new ClientInfo(client, new AtomicInteger(1)));
-        
+
         return client;
     }
 
@@ -142,8 +149,8 @@ public class SDKClientPool {
             clientCache.remove(cache_key);
             
             // Remove from busy pool and add to idle pool atomically
-            ConcurrentLinkedQueue<SDKClient> busyPool = busyClients.get(bucket_key);
-            ConcurrentLinkedQueue<SDKClient> idlePool = idleClients.get(bucket_key);
+            LinkedBlockingQueue<SDKClient> busyPool = busyClients.get(bucket_key);
+            LinkedBlockingQueue<SDKClient> idlePool = idleClients.get(bucket_key);
             
             if (busyPool != null) {
                 busyPool.remove(client);

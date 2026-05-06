@@ -474,30 +474,23 @@ public class WorkLoadGenerate extends Task{
     @Override
     public void run() {
         if (this.sdkClientPool != null) {
-            int retries = 0;
-            while (this.sdk == null && retries < 30) {
-                try {
-                    this.sdk = this.sdkClientPool.get_client_for_bucket(
+            try {
+                // Pool blocks internally until a client is available (up to its configured timeout).
+                // No busy-poll needed here — blocking in the pool is cheaper and has no retry cap.
+                this.sdk = this.sdkClientPool.get_client_for_bucket(
                         this.bucket_name, this.scope, this.collection);
-                } catch (Exception e) {
-                    logger.error("Error getting SDK client from pool for bucket "
-                            + this.bucket_name + ": " + e.getMessage());
-                }
-                if (this.sdk == null) {
-                    try {
-                        TimeUnit.SECONDS.sleep(1);
-                    } catch (InterruptedException e) {
-                        logger.error("Interrupted while waiting for SDK client", e);
-                        Thread.currentThread().interrupt();
-                        this.result = false;
-                        return;
-                    }
-                    retries++;
-                }
+            } catch (InterruptedException e) {
+                logger.error("Interrupted while waiting for SDK client for bucket "
+                        + this.bucket_name, e);
+                Thread.currentThread().interrupt();
+                this.result = false;
+                return;
+            } catch (Exception e) {
+                logger.error("Error acquiring SDK client for bucket "
+                        + this.bucket_name + ": " + e.getMessage(), e);
             }
             if (this.sdk == null) {
-                logger.error("Failed to acquire SDK client for bucket "
-                        + this.bucket_name + " after " + retries + " retries");
+                logger.error("Failed to acquire SDK client for bucket " + this.bucket_name);
                 this.result = false;
                 return;
             }
