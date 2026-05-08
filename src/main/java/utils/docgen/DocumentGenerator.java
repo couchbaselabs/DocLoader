@@ -350,21 +350,24 @@ public class DocumentGenerator extends KVGenerator{
         return this.ws;
     }
 
-    public Tuple2<String, Object> next() {
-        long temp = this.ws.dr.createItr.getAndIncrement();
+    private Tuple2<String, Object> nextCreateAt(long idx) {
         String k = null;
         Object v = null;
-            try {
-                if (this.target_vbuckets != null && this.target_vbuckets.length > 0) {
-                    k = this.generated_create_keys.get(temp);
-                } else {
-                    k = (String) this.keyMethod.invoke(this.keys, temp);
-                }
-                v = (Object) this.valMethod.invoke(this.vals, k);
-            } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
-                e1.printStackTrace();
+        try {
+            if (this.target_vbuckets != null && this.target_vbuckets.length > 0) {
+                k = this.generated_create_keys.get(idx);
+            } else {
+                k = (String) this.keyMethod.invoke(this.keys, idx);
             }
+            v = (Object) this.valMethod.invoke(this.vals, k);
+        } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
+            e1.printStackTrace();
+        }
         return Tuples.of(k, v);
+    }
+
+    public Tuple2<String, Object> next() {
+        return nextCreateAt(this.ws.dr.createItr.getAndIncrement());
     }
 
     public Tuple2<String, Object> nextRead() {
@@ -464,8 +467,10 @@ public class DocumentGenerator extends KVGenerator{
     public List<Tuple2<String, Object>> nextInsertBatch() {
         List<Tuple2<String, Object>> docs = new ArrayList<Tuple2<String,Object>>();
         int count = 0;
-        while (this.has_next_create() && count<ws.batchSize*ws.creates/100) {
-            docs.add(this.next());
+        while (count < ws.batchSize * ws.creates / 100) {
+            long idx = this.ws.dr.createItr.getAndIncrement();
+            if (idx >= this.ws.dr.create_e) break;
+            docs.add(nextCreateAt(idx));
             count += 1;
         }
         return docs;
