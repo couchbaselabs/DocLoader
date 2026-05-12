@@ -211,13 +211,17 @@ abstract class KVGenerator{
         if (this.ws.dr.readItr.get() < this.ws.dr.read_e)
             return true;
         if (this.keyInstance.getSimpleName().equals(CircularKey.class.getSimpleName())) {
-            try {
-                if ((boolean)this.iterationsMethod.invoke(this.keys)) {
-                    this.resetRead();
+            synchronized (this.keys) {
+                if (this.ws.dr.readItr.get() < this.ws.dr.read_e)
                     return true;
+                try {
+                    if ((boolean)this.iterationsMethod.invoke(this.keys)) {
+                        this.resetRead();
+                        return true;
+                    }
+                } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
+                    e1.printStackTrace();
                 }
-            } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
-                e1.printStackTrace();
             }
         }
         return false;
@@ -226,21 +230,25 @@ abstract class KVGenerator{
     public boolean has_next_update() {
         if (this.ws.dr.updateItr.get() < this.ws.dr.update_e)
             return true;
-        if (this.keyInstance.getSimpleName().equals(CircularKey.class.getSimpleName())) {
-            try {
-                if ((boolean)this.iterationsMethod.invoke(this.keys)) {
-                    this.resetUpdate();
-                    this.ws.mutated += 1;
-                    return true;
+        synchronized (this.keys) {
+            if (this.ws.dr.updateItr.get() < this.ws.dr.update_e)
+                return true;
+            if (this.keyInstance.getSimpleName().equals(CircularKey.class.getSimpleName())) {
+                try {
+                    if ((boolean)this.iterationsMethod.invoke(this.keys)) {
+                        this.resetUpdate();
+                        this.ws.mutated += 1;
+                        return true;
+                    }
+                } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
+                    e1.printStackTrace();
                 }
-            } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
-                e1.printStackTrace();
             }
-        }
-        if (TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis())-startTime<ws.mutation_timeout) {
-            this.resetUpdate();
-            this.ws.mutated += 1;
-            return true;
+            if (TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis())-startTime<ws.mutation_timeout) {
+                this.resetUpdate();
+                this.ws.mutated += 1;
+                return true;
+            }
         }
         return false;
     }
@@ -249,13 +257,17 @@ abstract class KVGenerator{
         if (this.ws.dr.expiryItr.get() < this.ws.dr.expiry_e)
             return true;
         if (this.keyInstance.getSimpleName().equals(CircularKey.class.getSimpleName())) {
-            try {
-                if ((boolean)this.iterationsMethod.invoke(this.keys, null)) {
-                    this.resetExpiry();
+            synchronized (this.keys) {
+                if (this.ws.dr.expiryItr.get() < this.ws.dr.expiry_e)
                     return true;
+                try {
+                    if ((boolean)this.iterationsMethod.invoke(this.keys)) {
+                        this.resetExpiry();
+                        return true;
+                    }
+                } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
+                    e1.printStackTrace();
                 }
-            } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
-                e1.printStackTrace();
             }
         }
         return false;
@@ -311,7 +323,7 @@ abstract class KVGenerator{
     abstract Tuple2<String, Object> next();
 
     void resetRead() {
-        this.ws.dr.readItr =  new AtomicLong(this.ws.dr.read_s);
+        this.ws.dr.readItr.set(this.ws.dr.read_s);
     }
 
     void resetExpiry() {
