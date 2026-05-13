@@ -17,6 +17,7 @@ import utils.key.RandomSizeKey;
 import utils.key.ReverseKey;
 import utils.key.SimpleKey;
 import utils.val.Cars;
+import utils.val.EmptyValue;
 import utils.val.Hotel;
 import utils.val.HeterogeneousHotel;
 import utils.val.MiniCars;
@@ -164,6 +165,8 @@ abstract class KVGenerator{
             this.valInstance = SimpleSubDocValue.class;
         else if (valClass.equals(RandomlyNestedJson.class.getSimpleName()))
             this.valInstance = RandomlyNestedJson.class;
+        else if (valClass.equals(EmptyValue.class.getSimpleName()))
+            this.valInstance = EmptyValue.class;
         else
             this.valInstance = SimpleValue.class;
     }
