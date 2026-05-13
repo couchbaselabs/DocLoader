@@ -94,6 +94,58 @@ sequenceDiagram
 
     C->>TM: /get_task_result
 
+### Task Lifecycle & Cleanup Flow
+
+`loader_tasks` and `completed_tasks` are the two `ConcurrentHashMap`s in `TaskRequest` that track task state.
+Tasks are added to `loader_tasks` on `doc_load`, then transition based on which completion path is taken.
+
+**Path A — `get_task_result()` called before `stop_task()`**
+```
+doc_load  ──► loader_tasks.put(taskName, task)
+               │
+submit_task ──► taskManager.submit(task) ──► task runs ──► "Task_X is completed!" (log)
+               │
+get_task_result()
+  ├─► taskManager.getTaskResult(task)     (waits for future)
+  ├─► loader_tasks.remove(taskName)
+  └─► completed_tasks.put(taskName, task)
+               │
+stop_task()
+  ├─► loader_tasks.get()       → null
+  ├─► completed_tasks.contains → true
+  └─► status: true  ✓
+```
+
+**Path B — `stop_task()` called before `get_task_result()`**
+```
+doc_load  ──► loader_tasks.put(taskName, task)
+               │
+submit_task ──► taskManager.submit(task) ──► task runs
+               │
+stop_task()
+  ├─► task.stop_load()                    (sets flag, run loop exits)
+  ├─► loader_tasks.remove(taskName)
+  └─► completed_tasks.put(taskName, task)
+               │
+get_task_result()
+  ├─► loader_tasks.getOrDefault(taskName, completed_tasks.get(taskName))
+  │                                        (finds task in completed_tasks)
+  ├─► taskManager.getTaskResult(task)
+  └─► failures + status returned  ✓
+```
+
+**Reset**
+```
+reset_task_manager()
+  ├─► loader_tasks    = new ConcurrentHashMap()
+  └─► completed_tasks = new ConcurrentHashMap()   (prevents stale name collisions across test runs)
+```
+
+**Why `completed_tasks` exists:**
+Without it, `stop_task` called after `get_task_result` (or vice versa) hits a missing key in `loader_tasks`
+and returns `{"status": false, "error": "Task X does not exists"}` — logged as CRITICAL in TAF
+even though the task completed successfully.
+
 ### Performance Optimization Guidelines
 * **Multi-Collection Strategy**: Prefer bucket-level clients with dynamic collection switching over per-collection client instances. Workers should call `selectCollection()` dynamically per operation instead of creating dedicated clients per collection.
 * **Shared Cluster Management**: Use `SharedClusterManager` for all multi-collection workloads. It provides:

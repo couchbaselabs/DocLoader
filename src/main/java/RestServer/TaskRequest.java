@@ -46,6 +46,7 @@ public class TaskRequest {
     static ArrayList<Server> known_servers = new ArrayList<Server>();
     static Object lock_obj = new Object();
     static private ConcurrentHashMap<String, WorkLoadGenerate> loader_tasks = new ConcurrentHashMap<String, WorkLoadGenerate>();
+    static private ConcurrentHashMap<String, WorkLoadGenerate> completed_tasks = new ConcurrentHashMap<String, WorkLoadGenerate>();
     static private ConcurrentHashMap<String, mongo.loadgen.WorkLoadGenerate> mongo_loader_tasks = new ConcurrentHashMap<String, mongo.loadgen.WorkLoadGenerate>();
 
     // Consumed by init_task_manager()
@@ -495,6 +496,7 @@ public class TaskRequest {
         this.shutdown_taskmanager();
         this.init_taskmanager();
         TaskRequest.loader_tasks = new ConcurrentHashMap<String, WorkLoadGenerate>();
+        TaskRequest.completed_tasks = new ConcurrentHashMap<String, WorkLoadGenerate>();
         body.put("status", true);
         return new ResponseEntity<>(body, HttpStatus.OK);
     }
@@ -563,7 +565,8 @@ public class TaskRequest {
 
     public ResponseEntity<Map<String, Object>> get_task_result() {
         Map<String, Object> body = new HashMap<>();
-        WorkLoadGenerate task = TaskRequest.loader_tasks.get(this.taskName);
+        WorkLoadGenerate task = TaskRequest.loader_tasks.getOrDefault(this.taskName,
+                TaskRequest.completed_tasks.get(this.taskName));
         if (task != null) {
             Map<String, Object> failures = new HashMap<>();
             boolean okay = false;
@@ -573,6 +576,7 @@ public class TaskRequest {
                 body.put("error", "Exception during getTaskResult: " + e.toString());
             }
             TaskRequest.loader_tasks.remove(this.taskName);
+            TaskRequest.completed_tasks.put(this.taskName, task);
             for (HashMap.Entry<String, List<Result>> optype : task.failedMutations.entrySet()) {
                 optype.getValue().forEach(
                         (failed_result) -> {
@@ -602,6 +606,10 @@ public class TaskRequest {
         WorkLoadGenerate task = TaskRequest.loader_tasks.get(this.taskName);
         if (task != null) {
             task.stop_load();
+            TaskRequest.loader_tasks.remove(this.taskName);
+            TaskRequest.completed_tasks.put(this.taskName, task);
+            body.put("status", true);
+        } else if (TaskRequest.completed_tasks.containsKey(this.taskName)) {
             body.put("status", true);
         } else {
             body.put("error", "Task " + this.taskName + " does not exists");
