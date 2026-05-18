@@ -472,7 +472,12 @@ public class DocumentGenerator extends KVGenerator{
         int count = 0;
         while (count < ws.batchSize * ws.creates / 100) {
             long idx = this.ws.dr.createItr.getAndIncrement();
-            if (idx >= this.ws.dr.create_e) break;
+            if (idx >= this.ws.dr.create_e) {
+                System.out.println("[BATCH_DONE] thread=" + Thread.currentThread().getName()
+                        + " claimed_idx=" + idx + " create_e=" + this.ws.dr.create_e
+                        + " docs_in_batch=" + count);
+                break;
+            }
             docs.add(nextCreateAt(idx));
             count += 1;
         }
