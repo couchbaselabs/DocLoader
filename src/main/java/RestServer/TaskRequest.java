@@ -752,6 +752,14 @@ public class TaskRequest {
                           ", Requested workers=" + ws.workers +
                           ", Effective workers=" + effectiveWorkers);
 
+        System.out.println("[DOC_LOAD] bucket=" + this.bucketName
+                + " scope=" + this.scopeName
+                + " collection=" + this.collectionName
+                + " create=[" + this.createStartIndex + "," + this.createEndIndex + ")"
+                + " total_docs=" + totalDocsToProcess
+                + " effective_workers=" + effectiveWorkers
+                + " task=" + task_name);
+
         // Only spawn effective workers
         for (int i = 0; i < effectiveWorkers; i++) {
             String th_name = task_name + "_" + i;

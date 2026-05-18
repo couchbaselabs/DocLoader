@@ -234,6 +234,7 @@ public class WorkLoadGenerate extends Task{
         }
 
         int ops = 0;
+        long createDocsWritten = 0;
         boolean flag = false;
         Instant trackFailureTime_start = Instant.now();
         while(! this.stop_load) {
@@ -258,9 +259,16 @@ public class WorkLoadGenerate extends Task{
                     List<Result> result = new ArrayList<Result>();
                     if(this.sdk != null)
                         result = docops.bulkInsert(this.sdk.connection, docs, setOptions);
+                    createDocsWritten += docs.size();
                     ops += dg.ws.batchSize*dg.ws.creates/100;
                     if(this.trackFailures && result.size()>0){
                         this.result = false;
+                        logger.warn("[CREATE_FAIL] task=" + this.taskName
+                                + " collection=" + this.collection
+                                + " batch_sent=" + docs.size()
+                                + " failed=" + result.size()
+                                + " first_failed_key=" + result.get(0).id()
+                                + " error=" + result.get(0).err().getClass().getSimpleName());
                         try {
                             failedMutations.get("create").addAll(result);
                         } catch (Exception e) {
@@ -421,54 +429,86 @@ public class WorkLoadGenerate extends Task{
             }
         }
         logger.info(this.taskName + " is completed!");
+        long retryDocsInserted = 0;
         if (retryTimes > 0 && failedMutations.size() > 0) {
+            for (Entry<String, List<Result>> optype: failedMutations.entrySet()) {
+                logger.warn("[RETRY_START] task=" + this.taskName
+                        + " collection=" + this.collection
+                        + " op=" + optype.getKey()
+                        + " count=" + optype.getValue().size());
+            }
             this.result = true;
             for (Entry<String, List<Result>> optype: failedMutations.entrySet()) {
                 for (Result r: optype.getValue()) {
-                    System.out.println("Loader Retrying: " + r.id() + " -> " + r.err().getClass().getSimpleName());
+                    logger.warn("[RETRY_ATTEMPT] task=" + this.taskName
+                            + " op=" + optype.getKey()
+                            + " key=" + r.id()
+                            + " original_error=" + r.err().getClass().getSimpleName());
                     switch(optype.getKey()) {
                     case "create":
                         try {
                             docops.insert(r.id(), r.document(), this.sdk.connection, setOptions);
                             failedMutations.get(optype.getKey()).remove(r);
+                            retryDocsInserted++;
+                            logger.info("[RETRY_SUCCESS] op=create key=" + r.id());
                         } catch (TimeoutException|ServerOutOfMemoryException e) {
-                            System.out.println("Retry Create failed for key: " + r.id());
+                            logger.error("[RETRY_FAIL] op=create key=" + r.id() + " error=" + e.getClass().getSimpleName());
                             this.result = false;
                         } catch (DocumentExistsException e) {
-                            System.out.println("Retry Create failed for key: " + r.id());
+                            // Doc already in bucket from original attempt — not an extra doc
+                            logger.warn("[RETRY_EXISTS] op=create key=" + r.id() + " — doc already exists, original write succeeded");
                         } catch (Exception e) {
-                            System.out.println("Exception during create'" + r.id() + "' :: " + e.toString());
+                            logger.error("[RETRY_FAIL] op=create key=" + r.id() + " error=" + e.toString());
                             this.result = false;
                         }
+                        // WARNING: missing break — falls through to 'update' case below
+                        logger.warn("[RETRY_FALLTHROUGH] op=create falling through to update for key=" + r.id()
+                                + " — this is a switch bug; create will also be upserted");
                     case "update":
                         try {
                             docops.upsert(r.id(), r.document(), this.sdk.connection, upsertOptions);
                             failedMutations.get(optype.getKey()).remove(r);
+                            logger.info("[RETRY_SUCCESS] op=update key=" + r.id());
                         } catch (TimeoutException|ServerOutOfMemoryException e) {
-                            System.out.println("Retry update failed for key: " + r.id());
+                            logger.error("[RETRY_FAIL] op=update key=" + r.id() + " error=" + e.getClass().getSimpleName());
                             this.result = false;
                         }  catch (DocumentExistsException e) {
-                            System.out.println("Retry update failed for key: " + r.id());
+                            logger.error("[RETRY_FAIL] op=update key=" + r.id() + " error=" + e.getClass().getSimpleName());
                             this.result = false;
                         } catch (Exception e) {
-                            System.out.println("Exception during update'" + r.id() + "' :: " + e.toString());
+                            logger.error("[RETRY_FAIL] op=update key=" + r.id() + " error=" + e.toString());
                             this.result = false;
                         }
+                        // WARNING: missing break — falls through to 'delete' case below
+                        logger.warn("[RETRY_FALLTHROUGH] op=update falling through to delete for key=" + r.id()
+                                + " — this is a switch bug; doc will also be deleted");
                     case "delete":
                         try {
                             docops.delete(r.id(), this.sdk.connection, removeOptions);
                             failedMutations.get(optype.getKey()).remove(r);
+                            logger.info("[RETRY_SUCCESS] op=delete key=" + r.id());
                         } catch (TimeoutException|ServerOutOfMemoryException e) {
-                            System.out.println("Retry delete failed for key: " + r.id());
+                            logger.error("[RETRY_FAIL] op=delete key=" + r.id() + " error=" + e.getClass().getSimpleName());
                             this.result = false;
                         } catch (DocumentNotFoundException e) {
-                            System.out.println("Retry delete failed for key: " + r.id());
+                            logger.error("[RETRY_FAIL] op=delete key=" + r.id() + " error=DocumentNotFoundException");
                             this.result = false;
                         }
                     }
                 }
             }
         }
+        logger.info("[LOAD_COMPLETE] task=" + this.taskName
+                + " bucket=" + this.bucket_name
+                + " scope=" + this.scope
+                + " collection=" + this.collection
+                + " create_docs_written=" + createDocsWritten
+                + " retry_docs_inserted=" + retryDocsInserted
+                + " total=" + (createDocsWritten + retryDocsInserted)
+                + " final_createItr=" + this.dg.ws.dr.createItr.get()
+                + " create_s=" + this.dg.ws.dr.create_s
+                + " create_e=" + this.dg.ws.dr.create_e
+                + " expected=" + (this.dg.ws.dr.create_e - this.dg.ws.dr.create_s));
     }
 
     @Override

@@ -95,23 +95,30 @@ public class SDKClientPool {
         // Check if client is already cached for this collection
         ClientInfo existing = clientCache.get(cache_key);
         if (existing != null) {
-            existing.counter.incrementAndGet();
+            int cnt = existing.counter.incrementAndGet();
+            logger.debug("[POOL_HIT] cache_key=" + cache_key + " counter=" + cnt);
             return existing.client;
         }
 
         // Get idle client pool for this bucket
         LinkedBlockingQueue<SDKClient> idlePool = idleClients.get(bucket_name);
         if (idlePool == null) {
+            logger.warn("[POOL_MISS] No idle pool found for bucket=" + bucket_name);
             return null;
         }
+
+        logger.info("[POOL_MISS] cache_key=" + cache_key
+                + " idle=" + idlePool.size()
+                + " busy=" + busyClients.getOrDefault(bucket_name, new LinkedBlockingQueue<>()).size());
 
         // Block until a client becomes available or timeout expires.
         // With 200-300 threads sharing a finite pool, spinning with a fixed retry cap
         // causes spurious failures on long-running loads — blocking here is cheaper and correct.
         SDKClient client = idlePool.poll(CLIENT_WAIT_TIMEOUT_MINUTES, TimeUnit.MINUTES);
         if (client == null) {
-            logger.error("Timed out waiting " + CLIENT_WAIT_TIMEOUT_MINUTES
-                    + " min for idle SDK client for bucket " + bucket_name);
+            logger.error("[POOL_TIMEOUT] Timed out waiting " + CLIENT_WAIT_TIMEOUT_MINUTES
+                    + " min for idle SDK client for bucket=" + bucket_name
+                    + " busy=" + busyClients.getOrDefault(bucket_name, new LinkedBlockingQueue<>()).size());
             return null;
         }
 
@@ -123,6 +130,10 @@ public class SDKClientPool {
 
         // Cache client reference with thread-safe counter
         clientCache.put(cache_key, new ClientInfo(client, new AtomicInteger(1)));
+
+        logger.info("[POOL_ASSIGN] cache_key=" + cache_key
+                + " idle=" + idlePool.size()
+                + " busy=" + busyClients.get(bucket_name).size());
 
         return client;
     }
@@ -138,25 +149,32 @@ public class SDKClientPool {
         // Get cached client info
         ClientInfo info = clientCache.get(cache_key);
         if (info == null) {
+            // TOCTOU: second thread's put overwrote first; this client is now orphaned in busyClients
+            logger.warn("[POOL_ORPHAN] release_client called but no cache entry for cache_key=" + cache_key
+                    + " — client is orphaned (likely TOCTOU race); pool capacity reduced by 1");
             return;
         }
 
         // Decrement counter atomically
         int newCount = info.counter.decrementAndGet();
+        logger.debug("[POOL_RELEASE] cache_key=" + cache_key + " counter=" + newCount);
 
         if (newCount == 0) {
             // Remove from cache atomically
             clientCache.remove(cache_key);
-            
+
             // Remove from busy pool and add to idle pool atomically
             LinkedBlockingQueue<SDKClient> busyPool = busyClients.get(bucket_key);
             LinkedBlockingQueue<SDKClient> idlePool = idleClients.get(bucket_key);
-            
+
             if (busyPool != null) {
                 busyPool.remove(client);
             }
             if (idlePool != null) {
                 idlePool.add(client);
+                logger.info("[POOL_RETURN] cache_key=" + cache_key
+                        + " idle=" + idlePool.size()
+                        + " busy=" + (busyPool != null ? busyPool.size() : 0));
             }
         }
     }
