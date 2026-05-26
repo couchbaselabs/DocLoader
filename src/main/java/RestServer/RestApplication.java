@@ -146,6 +146,18 @@ class RestHandlers {
         }
     }
 
+    @PostMapping(value="/msmarco_doc_load")
+    public ResponseEntity<Map<String, Object>> msmarco_doc_load(@RequestBody TaskRequest taskRequest) {
+        try {
+            return taskRequest.loadMSMARCODataset();
+        } catch (Exception e) {
+            Map<String, Object> body = new HashMap<>();
+            body.put("error", e.toString());
+            body.put("status", false);
+            return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        }
+    }
+
     @PostMapping(value="/sift_doc_load")
     public ResponseEntity<Map<String, Object>> sift_doc_load(@RequestBody TaskRequest taskRequest) {
         try {

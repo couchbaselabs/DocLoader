@@ -131,7 +131,7 @@ public class SDKClientPool {
         if (client == null || client.bucket == null) {
             return;
         }
-
+        
         String bucket_key = client.bucket;
         String cache_key = bucket_key + ":" + client.scope + ":" + client.collection;
 
@@ -140,10 +140,10 @@ public class SDKClientPool {
         if (info == null) {
             return;
         }
-
+        
         // Decrement counter atomically
         int newCount = info.counter.decrementAndGet();
-
+        
         if (newCount == 0) {
             // Remove from cache atomically
             clientCache.remove(cache_key);
