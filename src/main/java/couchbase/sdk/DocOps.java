@@ -32,6 +32,14 @@ import utils.docgen.DocType.Person;
 
 public class DocOps {
 
+    // Backstop for the aggregate .block() below. Per-op timeouts (set on the passed-in
+    // *Options) bound a single request, but if the shared reactor scheduler/event-loop
+    // ever wedges under heavy backpressure (e.g. concurrent disk-full workloads), a
+    // per-op timeout firing internally does not guarantee its signal reaches the blocked
+    // caller. Without this, .block() can hang the calling thread indefinitely with no
+    // way for the JVM itself to recover.
+    private static final Duration BULK_OP_TIMEOUT = Duration.ofSeconds(120);
+
     public List<Result> bulkInsert(Collection collection, List<Tuple2<String, Object>> documents, InsertOptions insertOptions) {
         ReactiveCollection reactiveCollection = collection.reactive();
 
@@ -49,6 +57,7 @@ public class DocOps {
                           .onErrorResume(error -> Mono.just(new Result(k, v, error, false)));
                 }, concurrency)
                 .collectList()
+                .timeout(BULK_OP_TIMEOUT)
                 .block();
       }
 
@@ -70,6 +79,7 @@ public class DocOps {
                           .onErrorResume(error -> Mono.just(new Result(k, v, error, false)));
                 }, concurrency)
                 .collectList()
+                .timeout(BULK_OP_TIMEOUT)
                 .block();
     }
 
@@ -92,7 +102,7 @@ public class DocOps {
                                     }
                                 });
                     }
-                }, concurrency).collectList().block();
+                }, concurrency).collectList().timeout(BULK_OP_TIMEOUT).block();
         return returnValue;
     }
 
@@ -110,6 +120,7 @@ public class DocOps {
                           .onErrorResume(error -> Mono.just(new Result(key, null, error, false)));
                 }, concurrency)
                 .collectList()
+                .timeout(BULK_OP_TIMEOUT)
                 .block();
     }
 
@@ -144,7 +155,7 @@ public class DocOps {
                                     }
                                 });
                     }
-                }, concurrency).collectList().block();
+                }, concurrency).collectList().timeout(BULK_OP_TIMEOUT).block();
         return returnValue;
     }
 
@@ -175,7 +186,7 @@ public class DocOps {
                             }
                                 }).defaultIfEmpty(returnValue);
                     }
-                }, concurrency).collectList().block();
+                }, concurrency).collectList().timeout(BULK_OP_TIMEOUT).block();
         return returnValue;
     }
 
