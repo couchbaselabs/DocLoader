@@ -41,6 +41,7 @@ import java.nio.file.StandardOpenOption;
  *                          int  reserved    = 0
  *                          long recordCount
  *                          long tableOffset
+ *                          long sourceSize  -- size of the .vec it was built from
  *   {@value #HEADER_BYTES}  record data, records back to back
  *   tableOffset          offset table, (recordCount + 1) longs
  *                          entry[i] = absolute offset of record i
@@ -64,7 +65,10 @@ public final class SparseVectorStore implements Closeable {
     /** ASCII "MSV_SP01". */
     private static final long MAGIC = 0x4D53565F53503031L;
     private static final int VERSION = 1;
-    private static final int HEADER_BYTES = 32;
+    private static final int HEADER_BYTES = 40;
+
+    /** Overrides where the sidecar is written when the source directory is not writable. */
+    private static final String SIDECAR_DIR_PROPERTY = "msmarco.sidecar.dir";
 
     private static final String BIN_SUFFIX = ".bin";
     private static final String TMP_SUFFIX = ".tmp";
@@ -112,7 +116,7 @@ public final class SparseVectorStore implements Closeable {
      * unusable. Building is a one-off full pass over the text source.
      */
     public static SparseVectorStore open(String vecFilePath) throws IOException {
-        String path = ensureSidecar(vecFilePath);
+        String path = ensureSidecar(vecFilePath, resolveSidecarPath(vecFilePath));
         FileChannel ch = FileChannel.open(Paths.get(path), StandardOpenOption.READ);
         try {
             ByteBuffer header = ByteBuffer.allocate(HEADER_BYTES).order(ByteOrder.LITTLE_ENDIAN);
@@ -124,6 +128,7 @@ public final class SparseVectorStore implements Closeable {
             header.getInt(); // reserved
             long count = header.getLong();
             long table = header.getLong();
+            header.getLong(); // sourceSize, already validated by isUsable
 
             if (magic != MAGIC)
                 throw new IOException("Not a sparse vector sidecar: " + path);
@@ -217,16 +222,54 @@ public final class SparseVectorStore implements Closeable {
      * concurrent generators in one JVM build it once; across JVMs the build writes to a
      * temp file and renames atomically, so a racing build is wasteful but not corrupting.
      */
-    private static synchronized String ensureSidecar(String vecFilePath) throws IOException {
-        String binPath = vecFilePath + BIN_SUFFIX;
-        if (isUsable(binPath))
+    private static synchronized String ensureSidecar(String vecFilePath, String binPath) throws IOException {
+        if (isUsable(binPath, Files.size(Paths.get(vecFilePath))))
             return binPath;
         build(vecFilePath, binPath);
         return binPath;
     }
 
+    /**
+     * Picks where the sidecar lives. Next to the source is preferred so it is shared, but
+     * that directory is frequently a read-only or root-squashed export, so fall back
+     * rather than failing the load. An explicit -Dmsmarco.sidecar.dir wins over both.
+     *
+     * <p>Away from the source the file name carries a hash of the source's absolute path,
+     * so two sources with the same base name cannot collide.
+     */
+    private static String resolveSidecarPath(String vecFilePath) throws IOException {
+        Path source = Paths.get(vecFilePath).toAbsolutePath();
+        String name = source.getFileName().toString();
+
+        String configured = System.getProperty(SIDECAR_DIR_PROPERTY);
+        if (configured != null && !configured.trim().isEmpty())
+            return sidecarIn(Paths.get(configured.trim()), name, source, "-D" + SIDECAR_DIR_PROPERTY);
+
+        Path beside = source.getParent();
+        if (beside != null && Files.isWritable(beside))
+            return vecFilePath + BIN_SUFFIX;
+
+        Path working = Paths.get(System.getProperty("user.dir")).toAbsolutePath();
+        if (Files.isWritable(working)) {
+            System.out.println("Sidecar: " + beside + " is not writable, using " + working
+                    + " (set -D" + SIDECAR_DIR_PROPERTY + "=<dir> to choose another)");
+            return sidecarIn(working, name, source, "working directory");
+        }
+        throw new IOException("No writable location for the sparse vector sidecar; tried "
+                + beside + " and " + working + ". Set -D" + SIDECAR_DIR_PROPERTY + "=<dir>.");
+    }
+
+    private static String sidecarIn(Path dir, String name, Path source, String why) throws IOException {
+        if (!Files.isDirectory(dir))
+            Files.createDirectories(dir);
+        if (!Files.isWritable(dir))
+            throw new IOException("Sidecar directory " + dir + " (" + why + ") is not writable");
+        String tag = Integer.toHexString(source.toString().hashCode());
+        return dir.resolve(name + "." + tag + BIN_SUFFIX).toString();
+    }
+
     /** Cheap structural check: right magic and version, and the header agrees with the size. */
-    private static boolean isUsable(String binPath) {
+    private static boolean isUsable(String binPath, long sourceSize) {
         Path path = Paths.get(binPath);
         if (!Files.exists(path))
             return false;
@@ -241,6 +284,12 @@ public final class SparseVectorStore implements Closeable {
             header.getInt(); // reserved
             long count = header.getLong();
             long table = header.getLong();
+            long builtFrom = header.getLong();
+            if (builtFrom != sourceSize) {
+                System.out.println("Sidecar " + binPath + " was built from a " + builtFrom
+                        + " byte source but the source is now " + sourceSize + " bytes; rebuilding");
+                return false;
+            }
             return count >= 0 && table >= HEADER_BYTES && table + 8L * (count + 1) == ch.size();
         } catch (IOException e) {
             return false;
@@ -256,6 +305,7 @@ public final class SparseVectorStore implements Closeable {
         Path tmp = Paths.get(binPath + TMP_SUFFIX);
         Path tableTmp = Paths.get(binPath + TABLE_TMP_SUFFIX);
 
+        long sourceSize = Files.size(Paths.get(vecFilePath));
         System.out.println("Building sparse vector sidecar: " + vecFilePath + " -> " + binPath);
         System.out.println("  one-off; subsequent loads read it directly and do no text parsing");
 
@@ -333,6 +383,7 @@ public final class SparseVectorStore implements Closeable {
                 header.putInt(0);
                 header.putLong(records);
                 header.putLong(dataPos);
+                header.putLong(sourceSize);
                 flush(out, header, 0L);
 
                 out.force(true);
