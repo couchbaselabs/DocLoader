@@ -257,17 +257,31 @@ public class WorkLoadGenerate extends Task{
                     if(this.dg.ws.elastic) {
                         this.esClient.insertDocs(this.collection.replace("_", ""), docs);
                     }
-                    List<Result> result = new ArrayList<Result>();
-                    if(this.sdk != null)
-                        result = docops.bulkInsert(this.sdk.connection, docs, setOptions);
                     ops += dg.ws.batchSize*dg.ws.creates/100;
-                    this.completedOps.addAndGet(docs.size());
-                    if(this.trackFailures && result.size()>0){
+                    try {
+                        List<Result> result = new ArrayList<Result>();
+                        if(this.sdk != null)
+                            result = docops.bulkInsert(this.sdk.connection, docs, setOptions);
+                        this.completedOps.addAndGet(docs.size());
+                        if(this.trackFailures && result.size()>0){
+                            this.result = false;
+                            try {
+                                failedMutations.get("create").addAll(result);
+                            } catch (Exception e) {
+                                failedMutations.put("create", result);
+                            }
+                        }
+                    } catch (Exception e) {
+                        // Aggregate block() failed (e.g. BULK_OP_TIMEOUT) for this batch alone -
+                        // do not let it kill the whole task; record and keep looping so stop_load
+                        // is re-checked next iteration instead of being stuck here indefinitely.
+                        logger.error(this.taskName + ": bulkInsert (create) batch failed: " + e.toString(), e);
                         this.result = false;
-                        try {
-                            failedMutations.get("create").addAll(result);
-                        } catch (Exception e) {
-                            failedMutations.put("create", result);
+                        // A real cancel_task() interrupt must still end the task - do not swallow it
+                        // and retry, or hard cancellation becomes as ineffective as stop_task() is.
+                        if (Thread.currentThread().isInterrupted()) {
+                            logger.error(this.taskName + ": interrupted, stopping");
+                            return;
                         }
                     }
                 }
@@ -279,17 +293,26 @@ public class WorkLoadGenerate extends Task{
                     if(this.dg.ws.elastic) {
                         this.esClient.insertDocs(this.collection.replace("_", ""), docs);
                     }
-                    List<Result> result = new ArrayList<Result>();
-                    if(this.sdk != null)
-                        result = docops.bulkUpsert(this.sdk.connection, docs, upsertOptions);
                     ops += dg.ws.batchSize*dg.ws.updates/100;
-                    this.completedOps.addAndGet(docs.size());
-                    if(this.trackFailures && result.size()>0){
+                    try {
+                        List<Result> result = new ArrayList<Result>();
+                        if(this.sdk != null)
+                            result = docops.bulkUpsert(this.sdk.connection, docs, upsertOptions);
+                        this.completedOps.addAndGet(docs.size());
+                        if(this.trackFailures && result.size()>0){
+                            this.result = false;
+                            try {
+                                failedMutations.get("update").addAll(result);
+                            } catch (Exception e) {
+                                failedMutations.put("update", result);
+                            }
+                        }
+                    } catch (Exception e) {
+                        logger.error(this.taskName + ": bulkUpsert (update) batch failed: " + e.toString(), e);
                         this.result = false;
-                        try {
-                            failedMutations.get("update").addAll(result);
-                        } catch (Exception e) {
-                            failedMutations.put("update", result);
+                        if (Thread.currentThread().isInterrupted()) {
+                            logger.error(this.taskName + ": interrupted, stopping");
+                            return;
                         }
                     }
                 }
@@ -298,17 +321,26 @@ public class WorkLoadGenerate extends Task{
                 List<Tuple2<String, Object>> docs = dg.nextExpiryBatch();
                 if (docs.size()>0) {
                     flag = true;
-                    List<Result> result = new ArrayList<Result>();
-                    if(this.sdk != null)
-                        result = docops.bulkInsert(this.sdk.connection, docs, expiryOptions);
                     ops += dg.ws.batchSize*dg.ws.expiry/100;
-                    this.completedOps.addAndGet(docs.size());
-                    if(this.trackFailures && result.size()>0){
+                    try {
+                        List<Result> result = new ArrayList<Result>();
+                        if(this.sdk != null)
+                            result = docops.bulkInsert(this.sdk.connection, docs, expiryOptions);
+                        this.completedOps.addAndGet(docs.size());
+                        if(this.trackFailures && result.size()>0){
+                            this.result = false;
+                            try {
+                                failedMutations.get("expiry").addAll(result);
+                            } catch (Exception e) {
+                                failedMutations.put("expiry", result);
+                            }
+                        }
+                    } catch (Exception e) {
+                        logger.error(this.taskName + ": bulkInsert (expiry) batch failed: " + e.toString(), e);
                         this.result = false;
-                        try {
-                            failedMutations.get("expiry").addAll(result);
-                        } catch (Exception e) {
-                            failedMutations.put("expiry", result);
+                        if (Thread.currentThread().isInterrupted()) {
+                            logger.error(this.taskName + ": interrupted, stopping");
+                            return;
                         }
                     }
                 }
@@ -317,20 +349,29 @@ public class WorkLoadGenerate extends Task{
                 List<String> docs = dg.nextDeleteBatch();
                 if (docs.size()>0) {
                     flag = true;
-                    List<Result> result = new ArrayList<Result>();
-                    if(this.sdk != null)
-                        result = docops.bulkDelete(this.sdk.connection, docs, removeOptions);
-                    if(this.dg.ws.elastic) {
-                        this.esClient.deleteDocs(this.collection.replace("_", ""), docs);
-                    }
                     ops += dg.ws.batchSize*dg.ws.deletes/100;
-                    this.completedOps.addAndGet(docs.size());
-                    if(this.trackFailures && result.size()>0){
+                    try {
+                        List<Result> result = new ArrayList<Result>();
+                        if(this.sdk != null)
+                            result = docops.bulkDelete(this.sdk.connection, docs, removeOptions);
+                        if(this.dg.ws.elastic) {
+                            this.esClient.deleteDocs(this.collection.replace("_", ""), docs);
+                        }
+                        this.completedOps.addAndGet(docs.size());
+                        if(this.trackFailures && result.size()>0){
+                            this.result = false;
+                            try {
+                                failedMutations.get("delete").addAll(result);
+                            } catch (Exception e) {
+                                failedMutations.put("delete", result);
+                            }
+                        }
+                    } catch (Exception e) {
+                        logger.error(this.taskName + ": bulkDelete batch failed: " + e.toString(), e);
                         this.result = false;
-                        try {
-                            failedMutations.get("delete").addAll(result);
-                        } catch (Exception e) {
-                            failedMutations.put("delete", result);
+                        if (Thread.currentThread().isInterrupted()) {
+                            logger.error(this.taskName + ": interrupted, stopping");
+                            return;
                         }
                     }
                 }
@@ -339,38 +380,47 @@ public class WorkLoadGenerate extends Task{
                 List<Tuple2<String, Object>> docs = dg.nextReadBatch();
                 if (docs.size()>0) {
                     flag = true;
-                    List<Tuple2<String, Object>> res = docops.bulkGets(this.sdk.connection, docs, getOptions);
-                    if (this.dg.ws.validate) {
-                        Map<Object, Object> trnx_res = res.stream().collect(Collectors.toMap(t -> t.get(0), t -> t.get(1)));
-                        Map<Object, Object> trnx_docs = docs.stream().collect(Collectors.toMap(t -> t.get(0), t -> t.get(1)));
-                        ObjectMapper om = new ObjectMapper();
-                        om.setVisibility(PropertyAccessor.FIELD, Visibility.ANY);
-                        for (Object name : trnx_docs.keySet()) {
-                            try {
-                                String a = om.writeValueAsString(trnx_res.get(name));
-                                String b = om.writeValueAsString(trnx_docs.get(name));
-                                if(this.dg.ws.expectDeleted) {
-                                    if(!a.contains(DocumentNotFoundException.class.getSimpleName())) {
+                    ops += dg.ws.batchSize*dg.ws.reads/100;
+                    try {
+                        List<Tuple2<String, Object>> res = docops.bulkGets(this.sdk.connection, docs, getOptions);
+                        if (this.dg.ws.validate) {
+                            Map<Object, Object> trnx_res = res.stream().collect(Collectors.toMap(t -> t.get(0), t -> t.get(1)));
+                            Map<Object, Object> trnx_docs = docs.stream().collect(Collectors.toMap(t -> t.get(0), t -> t.get(1)));
+                            ObjectMapper om = new ObjectMapper();
+                            om.setVisibility(PropertyAccessor.FIELD, Visibility.ANY);
+                            for (Object name : trnx_docs.keySet()) {
+                                try {
+                                    String a = om.writeValueAsString(trnx_res.get(name));
+                                    String b = om.writeValueAsString(trnx_docs.get(name));
+                                    if(this.dg.ws.expectDeleted) {
+                                        if(!a.contains(DocumentNotFoundException.class.getSimpleName())) {
+                                            System.out.println("Validation failed for key: " + this.sdk.scope + ":" + this.sdk.collection + ":" + name);
+                                            System.out.println("Actual Value - " + a);
+                                            System.out.println("Expected Value - " + b);
+                                            System.out.println(this.taskName + " is completed!");
+                                            return;
+                                        }
+                                    } else if(!a.equals(b) && !a.contains("TimeoutException")){
                                         System.out.println("Validation failed for key: " + this.sdk.scope + ":" + this.sdk.collection + ":" + name);
                                         System.out.println("Actual Value - " + a);
                                         System.out.println("Expected Value - " + b);
                                         System.out.println(this.taskName + " is completed!");
                                         return;
                                     }
-                                } else if(!a.equals(b) && !a.contains("TimeoutException")){
-                                    System.out.println("Validation failed for key: " + this.sdk.scope + ":" + this.sdk.collection + ":" + name);
-                                    System.out.println("Actual Value - " + a);
-                                    System.out.println("Expected Value - " + b);
-                                    System.out.println(this.taskName + " is completed!");
-                                    return;
+                                } catch (JsonProcessingException e) {
+                                    e.printStackTrace();
                                 }
-                            } catch (JsonProcessingException e) {
-                                e.printStackTrace();
                             }
                         }
+                        this.completedOps.addAndGet(docs.size());
+                    } catch (Exception e) {
+                        logger.error(this.taskName + ": bulkGets (read) batch failed: " + e.toString(), e);
+                        this.result = false;
+                        if (Thread.currentThread().isInterrupted()) {
+                            logger.error(this.taskName + ": interrupted, stopping");
+                            return;
+                        }
                     }
-                    ops += dg.ws.batchSize*dg.ws.reads/100;
-                    this.completedOps.addAndGet(docs.size());
                 }
             }
             if(dg.ws.subdocs> 0) {
