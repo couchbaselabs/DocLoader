@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 
 /**
  * Random-access reader for the MSMARCO sparse vector source, backed by a binary sidecar
@@ -467,6 +468,16 @@ public final class SparseVectorStore implements Closeable {
         if (indexCount != valueCount)
             throw new IOException("Indices and values arrays have different lengths: "
                     + indexCount + " vs " + valueCount);
+        // countElements() counts separators while the parsers skip runs of them, so an
+        // empty element -- a trailing or doubled comma -- makes count overshoot what is
+        // actually parsed. Trim to the parsed length: leaving the surplus slots at their
+        // defaults would bake a phantom index 0 / value 0.0 into the sidecar, and the
+        // check above cannot catch it because both sides undercount identically. Never
+        // taken on well-formed input.
+        if (indexCount != count) {
+            indices = Arrays.copyOf(indices, indexCount);
+            values = Arrays.copyOf(values, indexCount);
+        }
         return new Object[] { indices, values };
     }
 
