@@ -58,6 +58,15 @@ import java.util.Arrays;
  * it is read one entry at a time by positional read -- an 8.8M-record source would need a
  * ~70MB {@code long[]} to hold it, per instance.
  *
+ * <p>The sidecar is an accelerator, never a prerequisite: {@link #openIfPresent} returns
+ * null when one is absent and the caller falls back to reading the text source. It is
+ * deliberately never built on demand. Building takes a full pass over the source -- on the
+ * order of ten minutes for 47GB -- and the loader is constructed inside an HTTP request
+ * handler on the REST path, where that blocks the request until the client times out and
+ * the thread is interrupted. An interrupt closes a FileChannel mid-write
+ * (ClosedByInterruptException) and leaves the interrupt flag set, so every later attempt
+ * fails immediately too. Build it with {@link #main} instead.
+ *
  * <p>Not thread safe: {@link #read} reuses internal buffers. Each generator owns its own
  * instance, and the generators serialise their own {@code next()} calls.
  */
@@ -89,6 +98,9 @@ public final class SparseVectorStore implements Closeable {
     private static final int[] NO_INDICES = new int[0];
     private static final float[] NO_VALUES = new float[0];
 
+    private static final java.util.concurrent.atomic.AtomicBoolean ANNOUNCED =
+            new java.util.concurrent.atomic.AtomicBoolean();
+
     private final String binPath;
     private final FileChannel channel;
     private final long recordCount;
@@ -113,11 +125,18 @@ public final class SparseVectorStore implements Closeable {
     }
 
     /**
-     * Opens the sidecar for {@code vecFilePath}, building it first if it is missing or
-     * unusable. Building is a one-off full pass over the text source.
+     * Opens the sidecar for {@code vecFilePath} if a usable one exists, else returns null so
+     * the caller can fall back to the text source. Never builds.
      */
-    public static SparseVectorStore open(String vecFilePath) throws IOException {
-        String path = ensureSidecar(vecFilePath, resolveSidecarPath(vecFilePath));
+    public static SparseVectorStore openIfPresent(String vecFilePath) throws IOException {
+        String path = sidecarPath(vecFilePath);
+        if (!isUsable(path, Files.size(Paths.get(vecFilePath)))) {
+            if (ANNOUNCED.compareAndSet(false, true))
+                System.out.println("No sparse vector sidecar at " + path
+                        + "; reading the text source. Build one with:  java -cp <jar> "
+                        + SparseVectorStore.class.getName() + " " + vecFilePath);
+            return null;
+        }
         FileChannel ch = FileChannel.open(Paths.get(path), StandardOpenOption.READ);
         try {
             ByteBuffer header = ByteBuffer.allocate(HEADER_BYTES).order(ByteOrder.LITTLE_ENDIAN);
@@ -219,54 +238,61 @@ public final class SparseVectorStore implements Closeable {
     /* ---------------------------------------------------------------- build */
 
     /**
-     * Returns the sidecar path, building it if absent or unusable. Synchronized so
-     * concurrent generators in one JVM build it once; across JVMs the build writes to a
-     * temp file and renames atomically, so a racing build is wasteful but not corrupting.
+     * Where the sidecar for this source lives: an explicit -Dmsmarco.sidecar.dir if set,
+     * otherwise beside the source.
+     *
+     * <p>Deliberately not derived from the working directory. Doing so made the location
+     * depend on who started the JVM -- the REST server and the CLI resolved to different
+     * directories for the same source and each rebuilt its own 13GB copy.
+     *
+     * <p>Away from the source the file name carries a hash of the source's absolute path,
+     * so two sources sharing a base name cannot collide.
      */
-    private static synchronized String ensureSidecar(String vecFilePath, String binPath) throws IOException {
-        if (isUsable(binPath, Files.size(Paths.get(vecFilePath))))
-            return binPath;
-        build(vecFilePath, binPath);
-        return binPath;
+    static String sidecarPath(String vecFilePath) {
+        Path source = Paths.get(vecFilePath).toAbsolutePath();
+        String configured = System.getProperty(SIDECAR_DIR_PROPERTY);
+        if (configured != null && !configured.trim().isEmpty())
+            return Paths.get(configured.trim())
+                    .resolve(source.getFileName() + "."
+                            + Integer.toHexString(source.toString().hashCode()) + BIN_SUFFIX)
+                    .toString();
+        return vecFilePath + BIN_SUFFIX;
     }
 
     /**
-     * Picks where the sidecar lives. Next to the source is preferred so it is shared, but
-     * that directory is frequently a read-only or root-squashed export, so fall back
-     * rather than failing the load. An explicit -Dmsmarco.sidecar.dir wins over both.
-     *
-     * <p>Away from the source the file name carries a hash of the source's absolute path,
-     * so two sources with the same base name cannot collide.
+     * Builds the sidecar for {@code vecFilePath}, replacing any existing one. Intended to be
+     * run deliberately, not from a request-serving thread.
      */
-    private static String resolveSidecarPath(String vecFilePath) throws IOException {
-        Path source = Paths.get(vecFilePath).toAbsolutePath();
-        String name = source.getFileName().toString();
-
-        String configured = System.getProperty(SIDECAR_DIR_PROPERTY);
-        if (configured != null && !configured.trim().isEmpty())
-            return sidecarIn(Paths.get(configured.trim()), name, source, "-D" + SIDECAR_DIR_PROPERTY);
-
-        Path beside = source.getParent();
-        if (beside != null && Files.isWritable(beside))
-            return vecFilePath + BIN_SUFFIX;
-
-        Path working = Paths.get(System.getProperty("user.dir")).toAbsolutePath();
-        if (Files.isWritable(working)) {
-            System.out.println("Sidecar: " + beside + " is not writable, using " + working
-                    + " (set -D" + SIDECAR_DIR_PROPERTY + "=<dir> to choose another)");
-            return sidecarIn(working, name, source, "working directory");
-        }
-        throw new IOException("No writable location for the sparse vector sidecar; tried "
-                + beside + " and " + working + ". Set -D" + SIDECAR_DIR_PROPERTY + "=<dir>.");
+    public static void buildSidecar(String vecFilePath) throws IOException {
+        String path = sidecarPath(vecFilePath);
+        Path dir = Paths.get(path).toAbsolutePath().getParent();
+        if (dir != null && !Files.isDirectory(dir))
+            Files.createDirectories(dir);
+        if (dir != null && !Files.isWritable(dir))
+            throw new IOException("Sidecar directory " + dir + " is not writable. Set -D"
+                    + SIDECAR_DIR_PROPERTY + "=<dir> to choose a writable one.");
+        if (Thread.currentThread().isInterrupted())
+            throw new IOException("Refusing to build: this thread is already interrupted, and"
+                    + " channel writes would fail immediately.");
+        build(vecFilePath, path);
     }
 
-    private static String sidecarIn(Path dir, String name, Path source, String why) throws IOException {
-        if (!Files.isDirectory(dir))
-            Files.createDirectories(dir);
-        if (!Files.isWritable(dir))
-            throw new IOException("Sidecar directory " + dir + " (" + why + ") is not writable");
-        String tag = Integer.toHexString(source.toString().hashCode());
-        return dir.resolve(name + "." + tag + BIN_SUFFIX).toString();
+    /** Builds the sidecar for the given .vec source. */
+    public static void main(String[] args) throws Exception {
+        if (args.length != 1) {
+            System.err.println("usage: " + SparseVectorStore.class.getName() + " <path-to-.vec>");
+            System.err.println("       -D" + SIDECAR_DIR_PROPERTY
+                    + "=<dir> to place the sidecar somewhere other than beside the source");
+            System.exit(2);
+        }
+        long started = System.currentTimeMillis();
+        String path = sidecarPath(args[0]);
+        if (isUsable(path, Files.size(Paths.get(args[0])))) {
+            System.out.println("Sidecar already present and current: " + path);
+            return;
+        }
+        buildSidecar(args[0]);
+        System.out.println("Built in " + ((System.currentTimeMillis() - started) / 1000) + "s");
     }
 
     /** Cheap structural check: right magic and version, and the header agrees with the size. */
