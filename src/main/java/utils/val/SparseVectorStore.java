@@ -77,8 +77,9 @@ public final class SparseVectorStore implements Closeable {
     private static final int VERSION = 1;
     private static final int HEADER_BYTES = 40;
 
-    /** Overrides where the sidecar is written when the source directory is not writable. */
+    /** Overrides where the sidecar lives when the source directory is not writable. */
     private static final String SIDECAR_DIR_PROPERTY = "msmarco.sidecar.dir";
+    private static final String SIDECAR_DIR_ENV = "MSMARCO_SIDECAR_DIR";
 
     private static final String BIN_SUFFIX = ".bin";
     private static final String TMP_SUFFIX = ".tmp";
@@ -133,8 +134,8 @@ public final class SparseVectorStore implements Closeable {
         if (!isUsable(path, Files.size(Paths.get(vecFilePath)))) {
             if (ANNOUNCED.compareAndSet(false, true))
                 System.out.println("No sparse vector sidecar at " + path
-                        + "; reading the text source. Build one with:  java -cp <jar> "
-                        + SparseVectorStore.class.getName() + " " + vecFilePath);
+                        + "; reading the text source. Build one with:  java " + whereHint()
+                        + " -cp <jar> " + SparseVectorStore.class.getName() + " " + vecFilePath);
             return null;
         }
         FileChannel ch = FileChannel.open(Paths.get(path), StandardOpenOption.READ);
@@ -194,8 +195,11 @@ public final class SparseVectorStore implements Closeable {
         long from = offsetPair.getLong(0);
         long to = offsetPair.getLong(8);
 
+        // Bounded against MAX_NNZ here, not just against Integer.MAX_VALUE. The nnz field
+        // is the real check, but it can only be read after the record is in memory, so a
+        // corrupt table entry would first size the buffer below to whatever it claimed.
         long span = to - from;
-        if (span < 4 || span > Integer.MAX_VALUE)
+        if (span < 4 || span > 4L + 8L * MAX_NNZ)
             throw new IOException("corrupt record length " + span + " at record " + recordIndex
                     + " in " + binPath);
 
@@ -238,7 +242,7 @@ public final class SparseVectorStore implements Closeable {
     /* ---------------------------------------------------------------- build */
 
     /**
-     * Where the sidecar for this source lives: an explicit -Dmsmarco.sidecar.dir if set,
+     * Where the sidecar for this source lives: the configured directory if there is one,
      * otherwise beside the source.
      *
      * <p>Deliberately not derived from the working directory. Doing so made the location
@@ -250,13 +254,37 @@ public final class SparseVectorStore implements Closeable {
      */
     static String sidecarPath(String vecFilePath) {
         Path source = Paths.get(vecFilePath).toAbsolutePath();
-        String configured = System.getProperty(SIDECAR_DIR_PROPERTY);
-        if (configured != null && !configured.trim().isEmpty())
-            return Paths.get(configured.trim())
+        String configured = configuredDir();
+        if (configured != null)
+            return Paths.get(configured)
                     .resolve(source.getFileName() + "."
                             + Integer.toHexString(source.toString().hashCode()) + BIN_SUFFIX)
                     .toString();
         return vecFilePath + BIN_SUFFIX;
+    }
+
+    /**
+     * -Dmsmarco.sidecar.dir if set, else $MSMARCO_SIDECAR_DIR, else null for "beside the
+     * source".
+     *
+     * <p>The environment variable is honoured because "beside the source" is not always a
+     * location that can hold a sidecar, and the JVM that needs to read one is not always
+     * ours to add flags to. On the volume hosts the .vec sits on a read-only NFS export,
+     * and the REST server is started by the test framework from a fixed argument list with
+     * no -D in it -- so a system property alone leaves the sidecar unreachable from the
+     * only process that would benefit. An exported variable is inherited by both the
+     * server and the CLI builder, which keeps them pointed at one file.
+     */
+    private static String configuredDir() {
+        String dir = System.getProperty(SIDECAR_DIR_PROPERTY);
+        if (dir == null || dir.trim().isEmpty())
+            dir = System.getenv(SIDECAR_DIR_ENV);
+        return dir == null || dir.trim().isEmpty() ? null : dir.trim();
+    }
+
+    /** How to point both the builder and the server at a writable directory. */
+    private static String whereHint() {
+        return "-D" + SIDECAR_DIR_PROPERTY + "=<dir> (or export " + SIDECAR_DIR_ENV + "=<dir>)";
     }
 
     /**
@@ -269,8 +297,8 @@ public final class SparseVectorStore implements Closeable {
         if (dir != null && !Files.isDirectory(dir))
             Files.createDirectories(dir);
         if (dir != null && !Files.isWritable(dir))
-            throw new IOException("Sidecar directory " + dir + " is not writable. Set -D"
-                    + SIDECAR_DIR_PROPERTY + "=<dir> to choose a writable one.");
+            throw new IOException("Sidecar directory " + dir + " is not writable. Set "
+                    + whereHint() + " to choose a writable one.");
         if (Thread.currentThread().isInterrupted())
             throw new IOException("Refusing to build: this thread is already interrupted, and"
                     + " channel writes would fail immediately.");
@@ -281,8 +309,8 @@ public final class SparseVectorStore implements Closeable {
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
             System.err.println("usage: " + SparseVectorStore.class.getName() + " <path-to-.vec>");
-            System.err.println("       -D" + SIDECAR_DIR_PROPERTY
-                    + "=<dir> to place the sidecar somewhere other than beside the source");
+            System.err.println("       " + whereHint()
+                    + " to place the sidecar somewhere other than beside the source");
             System.exit(2);
         }
         long started = System.currentTimeMillis();
@@ -314,7 +342,8 @@ public final class SparseVectorStore implements Closeable {
             long builtFrom = header.getLong();
             if (builtFrom != sourceSize) {
                 System.out.println("Sidecar " + binPath + " was built from a " + builtFrom
-                        + " byte source but the source is now " + sourceSize + " bytes; rebuilding");
+                        + " byte source but the source is now " + sourceSize
+                        + " bytes; ignoring it and reading the text source");
                 return false;
             }
             return count >= 0 && table >= HEADER_BYTES && table + 8L * (count + 1) == ch.size();
@@ -344,6 +373,11 @@ public final class SparseVectorStore implements Closeable {
         ByteBuffer dataBuf = ByteBuffer.allocate(DATA_WRITE_BUFFER).order(ByteOrder.LITTLE_ENDIAN);
         ByteBuffer tableBuf = ByteBuffer.allocate(8 * TABLE_WRITE_ENTRIES).order(ByteOrder.LITTLE_ENDIAN);
 
+        // Cleared only once the rename lands. A flag rather than a catch clause because
+        // the build can fail unchecked -- a malformed line reaches Float.parseFloat as a
+        // NumberFormatException -- and the partial data file here is on the order of the
+        // 13GB the finished one would be, which is not something to strand on the disk.
+        boolean renamed = false;
         try {
             try (FileChannel out = FileChannel.open(tmp, StandardOpenOption.CREATE,
                             StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
@@ -417,11 +451,11 @@ public final class SparseVectorStore implements Closeable {
             }
             Files.move(tmp, Paths.get(binPath),
                     StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException e) {
-            Files.deleteIfExists(tmp);
-            throw e;
+            renamed = true;
         } finally {
             Files.deleteIfExists(tableTmp);
+            if (!renamed)
+                Files.deleteIfExists(tmp);
         }
 
         System.out.println("Sidecar built: " + binPath + " (" + records + " records"

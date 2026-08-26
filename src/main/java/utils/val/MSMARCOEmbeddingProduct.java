@@ -63,9 +63,14 @@ public class MSMARCOEmbeddingProduct implements Closeable {
 
         try {
             this.store = SparseVectorStore.openIfPresent(sourcePath);
-            if (store == null)
+            if (store == null) {
+                // Both belong to the text path only. Opening them anyway when the sidecar
+                // is in use would leave every generator holding a descriptor it never
+                // reads, on top of the sidecar's own -- and nothing in the repo closes a
+                // generator while ulimit -n is 1024 on the volume hosts. See offsetOf().
                 this.idxFilePath = ensureIndex(sourcePath);
-            this.fileChannel = FileChannel.open(Paths.get(sourcePath), StandardOpenOption.READ);
+                this.fileChannel = FileChannel.open(Paths.get(sourcePath), StandardOpenOption.READ);
+            }
 
             if (ws.creates > 0 && ws.dr != null) {
                 initRangeBounds(ws.dr.create_s);
