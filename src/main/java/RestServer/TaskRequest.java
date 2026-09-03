@@ -919,6 +919,12 @@ public class TaskRequest {
         } else if (this.updatePercent > 0) {
             start_offset = this.updateStartIndex;
             end_offset = this.updateEndIndex;
+        } else if (this.expiryPercent > 0) {
+            start_offset = this.expiryStartIndex;
+            end_offset = this.expiryEndIndex;
+        } else if (this.deletePercent > 0) {
+            start_offset = this.deleteStartIndex;
+            end_offset = this.deleteEndIndex;
         }
 
         ArrayList<String> task_names = new ArrayList<String>();
