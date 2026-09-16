@@ -953,14 +953,14 @@ public class TaskRequest {
                 dr.put(DRConstants.read_e, this.readEndIndex);
                 dr.put(DRConstants.update_s, start + step * i);
                 dr.put(DRConstants.update_e, start + step * (i + 1));
-                dr.put(DRConstants.delete_s, this.deleteStartIndex);
-                dr.put(DRConstants.delete_e, this.deleteEndIndex);
-                dr.put(DRConstants.touch_s, this.touchStartIndex);
-                dr.put(DRConstants.touch_e, this.touchEndIndex);
-                dr.put(DRConstants.replace_s, this.replaceStartIndex);
-                dr.put(DRConstants.replace_e, this.replaceEndIndex);
-                dr.put(DRConstants.expiry_s, this.expiryStartIndex);
-                dr.put(DRConstants.expiry_e, this.expiryEndIndex);
+                dr.put(DRConstants.delete_s, start + step * i);
+                dr.put(DRConstants.delete_e, start + step * (i + 1));
+                dr.put(DRConstants.touch_s, start + step * i);
+                dr.put(DRConstants.touch_e, start + step * (i + 1));
+                dr.put(DRConstants.replace_s, start + step * i);
+                dr.put(DRConstants.replace_e, start + step * (i + 1));
+                dr.put(DRConstants.expiry_s, start + step * i);
+                dr.put(DRConstants.expiry_e, start + step * (i + 1));
 
                 DocRange range = new DocRange(dr);
                 DocumentGenerator dg = null;
