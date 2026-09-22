@@ -1,0 +1,6 @@
+utils.val.shapes.impl.TransactionShape
+utils.val.shapes.impl.AssignedProductShape
+utils.val.shapes.impl.ProfileShape
+utils.val.shapes.impl.ContentShape
+utils.val.shapes.impl.MobileShape
+utils.val.shapes.impl.CatalogShape

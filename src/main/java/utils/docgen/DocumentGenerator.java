@@ -17,6 +17,7 @@ import utils.key.RandomSizeKey;
 import utils.key.ReverseKey;
 import utils.key.SimpleKey;
 import utils.val.Cars;
+import utils.val.PolymorphicDoc;
 import utils.val.Hotel;
 import utils.val.HeterogeneousHotel;
 import utils.val.MiniCars;
@@ -150,6 +151,9 @@ abstract class KVGenerator{
             this.valInstance = Hotel.class;
         else if (valClass.equals(HeterogeneousHotel.class.getSimpleName()))
             this.valInstance = HeterogeneousHotel.class;
+        else if (valClass.startsWith(PolymorphicDoc.NAME))
+            // Accepts a ":type1,type2" suffix selecting which document types to load.
+            this.valInstance = PolymorphicDoc.class;
         else if (valClass.equals(Cars.class.getSimpleName()))
             this.valInstance = Cars.class;
         else if (valClass.equals(MiniCars.class.getSimpleName()))

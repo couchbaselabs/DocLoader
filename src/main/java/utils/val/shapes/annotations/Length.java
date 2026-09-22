@@ -1,0 +1,23 @@
+package utils.val.shapes.annotations;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+/**
+ * Character-length bounds for a generated String, with an optional long tail so a small
+ * fraction of documents carry outsized values (index key limits, planner cost estimation).
+ */
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.FIELD)
+public @interface Length {
+    int min() default 8;
+
+    int max() default 32;
+
+    /** Probability of drawing from the long tail instead of [min,max]. */
+    double largeProb() default 0.0;
+
+    int largeMax() default 4096;
+}
