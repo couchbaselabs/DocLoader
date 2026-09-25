@@ -43,4 +43,12 @@ graph TD
   Utils-->|Utilized by| RestServer
   Couchbase/sdk/SharedClusterManager -->|Optimizes| Cluster Connections
   RestServer/CollectionLoadBatcher -->|Optimizes| Multi-Collection Loads
+  Utils/taskmanager/TaskManager -->|Bounds concurrency of| Multi-Collection Loads
+  Utils/taskmanager/RankedThreadPoolExecutor -->|Orders queue by| Task.workerIndex
 ```
+
+> Load concurrency note: a `/doc_load` request creates `process_concurrency` workers, and
+> `TaskManager`'s pool runs a fixed `num_workers` of them at a time. The queue is ordered
+> by each worker's index within its own request, so every load gets its first worker
+> before any load gets its second. Anything that creates a group of workers must set
+> `Task.workerIndex`, or loads behind it observe zero progress until it finishes.

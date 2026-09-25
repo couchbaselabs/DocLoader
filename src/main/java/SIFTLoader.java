@@ -253,6 +253,9 @@ public class SIFTLoader {
         } else if(Integer.parseInt(cmd.getOptionValue("ex", "0"))>0) {
             start_offset = Integer.parseInt(cmd.getOptionValue(DRConstants.expiry_s, "0"));
             end_offset = Integer.parseInt(cmd.getOptionValue(DRConstants.expiry_e, "0"));
+        } else if(Integer.parseInt(cmd.getOptionValue("dl", "0"))>0) {
+            start_offset = Integer.parseInt(cmd.getOptionValue(DRConstants.delete_s, "0"));
+            end_offset = Integer.parseInt(cmd.getOptionValue(DRConstants.delete_e, "0"));
         }
         int k = 0;
         while(!(steps[k] <= start_offset && start_offset < steps[k+1]))

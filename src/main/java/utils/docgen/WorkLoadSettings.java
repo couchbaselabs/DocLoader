@@ -51,6 +51,23 @@ public class WorkLoadSettings extends WorkLoadBase {
     public int dim;
     public boolean base64;
     public String baseVectorsFilePath;
+    public String embeddingFilePath;
+    public String embeddingPresignedUrl;
+    public String embeddingType = "sparse";
+    public String embeddingFormat = "jsonl_sparse";
+
+    // Cap the per-batch doc count so a high ops_rate cannot materialize a giant
+    // in-memory batch (root cause of loader OOMs). ops/workers stays the per-second
+    // budget; WorkLoadGenerate's loop meets it via more, smaller sub-batches, and
+    // DocOps still dispatches each bulk op at up to 20 concurrent requests, so
+    // throughput is unchanged.
+    static final int MAX_BATCH_BYTES = 4 * 1024 * 1024;
+    static int boundedBatchSize(int ops, int workers, int docSize) {
+        int perSecond = ops / Math.max(1, workers);
+        if (perSecond <= 0) return perSecond;   // keep old ops/workers behavior (0 => load nothing)
+        int byMemory = Math.max(1, MAX_BATCH_BYTES / Math.max(1, docSize));
+        return Math.min(perSecond, byMemory);
+    }
 
     /**** Constructors ****/
     public WorkLoadSettings(String keyPrefix,
@@ -72,7 +89,7 @@ public class WorkLoadSettings extends WorkLoadBase {
         this.expiry = e;
         this.workers = workers;
         this.ops = ops;
-        this.batchSize = this.ops/this.workers;
+        this.batchSize = boundedBatchSize(this.ops, this.workers, this.docSize);
         this.gtm = gtm;
         this.expectDeleted = deleted;
         this.validate = validate;
@@ -87,6 +104,7 @@ public class WorkLoadSettings extends WorkLoadBase {
         this.mutation_timeout = mutation_timeout;
         this.base64 = base64;
         this.baseVectorsFilePath = baseVectorsFilePath;
+        this.embeddingFilePath = baseVectorsFilePath;
     };
 
     public WorkLoadSettings(String keyPrefix,
@@ -106,7 +124,7 @@ public class WorkLoadSettings extends WorkLoadBase {
         this.workers = workers;
         this.ops = ops;
 
-        this.batchSize = this.ops/this.workers;
+        this.batchSize = boundedBatchSize(this.ops, this.workers, this.docSize);
         this.gtm = gtm;
         this.expectDeleted = deleted;
         this.validate = validate;
@@ -133,7 +151,7 @@ public class WorkLoadSettings extends WorkLoadBase {
         this.expiry = e;
         this.workers = workers;
         this.ops = ops;
-        this.batchSize = this.ops/this.workers;
+        this.batchSize = boundedBatchSize(this.ops, this.workers, this.docSize);
         this.gtm = gtm;
         this.expectDeleted = deleted;
         this.validate = validate;
@@ -201,7 +219,7 @@ public class WorkLoadSettings extends WorkLoadBase {
         this.is_subdoc_xattr = is_subdoc_xattr;
         this.is_subdoc_sys_xattr = is_subdoc_sys_xattr;
 
-        this.batchSize = this.ops/this.workers;
+        this.batchSize = boundedBatchSize(this.ops, this.workers, this.docSize);
         this.gtm = gtm;
         this.expectDeleted = deleted;
         this.validate = validate;
@@ -237,7 +255,7 @@ public class WorkLoadSettings extends WorkLoadBase {
         this.is_subdoc_xattr = is_subdoc_xattr;
         this.is_subdoc_sys_xattr = is_subdoc_sys_xattr;
 
-        this.batchSize = this.ops/this.workers;
+        this.batchSize = boundedBatchSize(this.ops, this.workers, this.docSize);
         this.gtm = gtm;
         this.expectDeleted = deleted;
         this.validate = validate;

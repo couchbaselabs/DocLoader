@@ -12,7 +12,9 @@ import elasticsearch.EsClient;
 import mongo.sdk.MongoSDKClient;
 import couchbase.sdk.Result;
 import utils.common.FileDownload;
+import utils.val.MSMARCOEmbeddingProduct;
 import utils.taskmanager.Task;
+import utils.taskmanager.TaskGroup;
 import utils.taskmanager.TaskManager;
 
 import org.apache.commons.cli.CommandLine;
@@ -46,6 +48,7 @@ public class TaskRequest {
     static ArrayList<Server> known_servers = new ArrayList<Server>();
     static Object lock_obj = new Object();
     static private ConcurrentHashMap<String, WorkLoadGenerate> loader_tasks = new ConcurrentHashMap<String, WorkLoadGenerate>();
+    static private ConcurrentHashMap<String, WorkLoadGenerate> completed_tasks = new ConcurrentHashMap<String, WorkLoadGenerate>();
     static private ConcurrentHashMap<String, mongo.loadgen.WorkLoadGenerate> mongo_loader_tasks = new ConcurrentHashMap<String, mongo.loadgen.WorkLoadGenerate>();
 
     // Consumed by init_task_manager()
@@ -172,6 +175,8 @@ public class TaskRequest {
     private String docTTLUnit;
     @JsonProperty("durability_level")
     private String durabilityLevel;
+    @JsonProperty("retry_strategy")
+    private String retryStrategy;
     @JsonProperty("ops")
     private int ops;
     @JsonProperty("gtm")
@@ -214,6 +219,8 @@ public class TaskRequest {
     private String baseVectorsFilePath;
     @JsonProperty("sift_url")
     private String siftURL;
+    @JsonProperty("vec_file_path")
+    private String vecFilePath;
 
     // Used by add_new_task(), get_task_result(), stop_task(), cancel_task()
     @JsonProperty("task_id")
@@ -320,6 +327,7 @@ public class TaskRequest {
         System.out.println("Timeout: " + timeout + ", Unit: " + timeoutUnit);
         System.out.println("doc_ttl: " + docTTL + ", Unit: " + docTTLUnit);
         System.out.println("durability_level: " + durabilityLevel);
+        System.out.println("retry_strategy: " + retryStrategy);
         System.out.println("Total vbuckets: " + numVBuckets + ", target_vbuckets: " + targetVBuckets);
         System.out.println("ops: " + ops);
         System.out.println("gtm: " + gtm);
@@ -386,7 +394,8 @@ public class TaskRequest {
     private void init_taskmanager() {
         TaskRequest.taskManager = new TaskManager(this.num_workers);
         System.out.println("Init TaskManager workers=" + this.num_workers);
-        this.reset_sdk_client_pool();
+        // Note: SDK client pool is already reset in shutdown_taskmanager(),
+        // no need to reset again here (avoid double shutdownAll() call)
         this.reset_mongo_sdk_client_pool();
     }
 
@@ -494,6 +503,7 @@ public class TaskRequest {
         this.shutdown_taskmanager();
         this.init_taskmanager();
         TaskRequest.loader_tasks = new ConcurrentHashMap<String, WorkLoadGenerate>();
+        TaskRequest.completed_tasks = new ConcurrentHashMap<String, WorkLoadGenerate>();
         body.put("status", true);
         return new ResponseEntity<>(body, HttpStatus.OK);
     }
@@ -501,7 +511,13 @@ public class TaskRequest {
     public ResponseEntity<Map<String, Object>> submit_task() {
         Map<String, Object> body = new HashMap<>();
         try {
-            TaskRequest.taskManager.submit(TaskRequest.loader_tasks.get(this.taskName));
+            WorkLoadGenerate task = TaskRequest.loader_tasks.get(this.taskName);
+            if (task == null) {
+                body.put("status", false);
+                body.put("error", "Task " + this.taskName + " does not exist in loader_tasks");
+                return new ResponseEntity<>(body, HttpStatus.OK);
+            }
+            TaskRequest.taskManager.submit(task);
             TimeUnit.MILLISECONDS.sleep(5);
             body.put("status", true);
         } catch (Exception e) {
@@ -514,7 +530,13 @@ public class TaskRequest {
     public ResponseEntity<Map<String, Object>> submit_task_mongo() {
         Map<String, Object> body = new HashMap<>();
         try {
-            TaskRequest.taskManager.submit(TaskRequest.mongo_loader_tasks.get(this.taskName));
+            mongo.loadgen.WorkLoadGenerate task = TaskRequest.mongo_loader_tasks.get(this.taskName);
+            if (task == null) {
+                body.put("status", false);
+                body.put("error", "Task " + this.taskName + " does not exist in mongo_loader_tasks");
+                return new ResponseEntity<>(body, HttpStatus.OK);
+            }
+            TaskRequest.taskManager.submit(task);
             TimeUnit.MILLISECONDS.sleep(5);
             body.put("status", true);
         } catch (Exception e) {
@@ -529,7 +551,12 @@ public class TaskRequest {
         try {
             mongo.loadgen.WorkLoadGenerate task = TaskRequest.mongo_loader_tasks.get(this.taskName);
         if (task != null) {
-            boolean okay = TaskRequest.taskManager.getTaskResult(task);
+            boolean okay = false;
+            try {
+                okay = TaskRequest.taskManager.getTaskResult(task);
+            } catch (Exception e) {
+                body.put("error", "Exception during getTaskResult: " + e.toString());
+            }
             body.put("status", okay);
         } else {
             body.put("error", "Task " + this.taskName + " does not exists");
@@ -545,11 +572,18 @@ public class TaskRequest {
 
     public ResponseEntity<Map<String, Object>> get_task_result() {
         Map<String, Object> body = new HashMap<>();
-        WorkLoadGenerate task = TaskRequest.loader_tasks.get(this.taskName);
+        WorkLoadGenerate task = TaskRequest.loader_tasks.getOrDefault(this.taskName,
+                TaskRequest.completed_tasks.get(this.taskName));
         if (task != null) {
             Map<String, Object> failures = new HashMap<>();
-            boolean okay = TaskRequest.taskManager.getTaskResult(task);
+            boolean okay = false;
+            try {
+                okay = TaskRequest.taskManager.getTaskResult(task);
+            } catch (Exception e) {
+                body.put("error", "Exception during getTaskResult: " + e.toString());
+            }
             TaskRequest.loader_tasks.remove(this.taskName);
+            TaskRequest.completed_tasks.put(this.taskName, task);
             for (HashMap.Entry<String, List<Result>> optype : task.failedMutations.entrySet()) {
                 optype.getValue().forEach(
                         (failed_result) -> {
@@ -574,11 +608,41 @@ public class TaskRequest {
         return new ResponseEntity<>(body, HttpStatus.OK);
     }
 
+    // Non-blocking: reports progress without waiting for the task to finish,
+    // so it is safe to poll while a get_task_result() call is stuck on another thread.
+    public ResponseEntity<Map<String, Object>> get_task_progress() {
+        Map<String, Object> body = new HashMap<>();
+        WorkLoadGenerate task = TaskRequest.loader_tasks.getOrDefault(this.taskName,
+                TaskRequest.completed_tasks.get(this.taskName));
+        if (task != null) {
+            body.put("completed_ops", TaskRequest.taskManager.getTaskProgress(task));
+            body.put("is_running", TaskRequest.taskManager.isTaskRunning(task));
+            // Additive pool visibility: lets a caller tell "my task is waiting for a
+            // thread" apart from "my task is running but stuck". Existing clients that
+            // only read completed_ops/is_running are unaffected.
+            body.put("active_tasks", TaskRequest.taskManager.getActiveTaskCount());
+            body.put("queued_tasks", TaskRequest.taskManager.getQueuedTaskCount());
+            body.put("pool_workers", TaskRequest.taskManager.getWorkerCount());
+            // False while the task is still queued for a thread. A caller watching for
+            // a stall must not run its clock on a task the pool has never started.
+            body.put("has_started", task.started);
+            body.put("status", true);
+        } else {
+            body.put("error", "Task " + this.taskName + " does not exists");
+            body.put("status", false);
+        }
+        return new ResponseEntity<>(body, HttpStatus.OK);
+    }
+
     public ResponseEntity<Map<String, Object>> stop_task() {
         Map<String, Object> body = new HashMap<>();
         WorkLoadGenerate task = TaskRequest.loader_tasks.get(this.taskName);
         if (task != null) {
             task.stop_load();
+            TaskRequest.loader_tasks.remove(this.taskName);
+            TaskRequest.completed_tasks.put(this.taskName, task);
+            body.put("status", true);
+        } else if (TaskRequest.completed_tasks.containsKey(this.taskName)) {
             body.put("status", true);
         } else {
             body.put("error", "Task " + this.taskName + " does not exists");
@@ -684,7 +748,11 @@ public class TaskRequest {
                                  (this.updateEndIndex - this.updateStartIndex) +
                                  (this.readEndIndex - this.readStartIndex) +
                                  (this.deleteEndIndex - this.deleteStartIndex) +
-                                 (this.expiryEndIndex - this.expiryStartIndex);
+                                 (this.expiryEndIndex - this.expiryStartIndex) +
+                                 (this.sdInsertEndIndex - this.sdInsertStartIndex) +
+                                 (this.sdUpsertEndIndex - this.sdUpsertStartIndex) +
+                                 (this.sdRemoveEndIndex - this.sdRemoveStartIndex) +
+                                 (this.sdReadEndIndex - this.sdReadStartIndex);
 
         // Calculate how many documents each worker would process
         // Based on the batch calculation in WorkLoadGenerate: ops = batchSize * operation_percent/100
@@ -693,7 +761,8 @@ public class TaskRequest {
             (this.updatePercent > 0 ? this.updatePercent : 0) +
             (this.readPercent > 0 ? this.readPercent : 0) +
             (this.deletePercent > 0 ? this.deletePercent : 0) +
-            (this.expiryPercent > 0 ? this.expiryPercent : 0)
+            (this.expiryPercent > 0 ? this.expiryPercent : 0) +
+            (this.subdocPercent > 0 ? this.subdocPercent : 0)
         ) / 100;
 
         // Handle edge case where docsPerWorker might be 0
@@ -705,10 +774,22 @@ public class TaskRequest {
         int effectiveWorkers = Math.min(ws.workers,
             (int)((totalDocsToProcess + docsPerWorker - 1) / docsPerWorker));  // ceil division
 
+        // When ops_rate >> totalDocsToProcess, the ceil division above collapses to 1 even if
+        // multiple workers were requested. Ensure we use at least min(ws.workers, totalDocsToProcess)
+        // workers so concurrency-dependent tests (e.g. dedupe-disable) are not silently serialized.
+        int minWorkers = (int) Math.min(ws.workers, totalDocsToProcess);
+        effectiveWorkers = Math.max(effectiveWorkers, minWorkers);
+
         System.out.println("Smart worker counting: Total docs=" + totalDocsToProcess +
                           ", Docs per worker=" + docsPerWorker +
                           ", Requested workers=" + ws.workers +
                           ", Effective workers=" + effectiveWorkers);
+
+        // Workers of this load all pull from the same generator 'dg', so once it is
+        // drained the ones that never got a thread have nothing to do. Group them so
+        // the first worker to see an empty generator can release the rest.
+        TaskGroup taskGroup = new TaskGroup();
+        taskGroup.setManager(TaskRequest.taskManager);
 
         // Only spawn effective workers
         for (int i = 0; i < effectiveWorkers; i++) {
@@ -716,8 +797,13 @@ public class TaskRequest {
             WorkLoadGenerate wlg = new WorkLoadGenerate(th_name, dg, TaskRequest.SDKClientPool, esClient,
                     this.durabilityLevel,
                     this.docTTL, this.docTTLUnit, this.trackFailures,
-                    retry, null);
+                    retry, this.retryStrategy);
             wlg.set_collection_for_load(this.bucketName, this.scopeName, this.collectionName);
+            // Schedule this load's worker 0 ahead of any other load's worker 1+, so a
+            // load submitted late still starts making progress immediately instead of
+            // waiting behind the full worker set of the loads before it.
+            wlg.workerIndex = i;
+            taskGroup.add(wlg);
             TaskRequest.loader_tasks.put(th_name, wlg);
 
             task_names.add(th_name);
@@ -785,6 +871,7 @@ public class TaskRequest {
                 this.mongoClients.add(client);
                 String th_name = "Loader" + i;
                 mongo.loadgen.WorkLoadGenerate task = new mongo.loadgen.WorkLoadGenerate(th_name, dg, client);
+                task.workerIndex = i;
                 TaskRequest.mongo_loader_tasks.put(th_name, task);
                 task_names.add(th_name);
                 TimeUnit.MILLISECONDS.sleep(500);
@@ -832,6 +919,12 @@ public class TaskRequest {
         } else if (this.updatePercent > 0) {
             start_offset = this.updateStartIndex;
             end_offset = this.updateEndIndex;
+        } else if (this.expiryPercent > 0) {
+            start_offset = this.expiryStartIndex;
+            end_offset = this.expiryEndIndex;
+        } else if (this.deletePercent > 0) {
+            start_offset = this.deleteStartIndex;
+            end_offset = this.deleteEndIndex;
         }
 
         ArrayList<String> task_names = new ArrayList<String>();
@@ -860,14 +953,14 @@ public class TaskRequest {
                 dr.put(DRConstants.read_e, this.readEndIndex);
                 dr.put(DRConstants.update_s, start + step * i);
                 dr.put(DRConstants.update_e, start + step * (i + 1));
-                dr.put(DRConstants.delete_s, this.deleteStartIndex);
-                dr.put(DRConstants.delete_e, this.deleteEndIndex);
-                dr.put(DRConstants.touch_s, this.touchStartIndex);
-                dr.put(DRConstants.touch_e, this.touchEndIndex);
-                dr.put(DRConstants.replace_s, this.replaceStartIndex);
-                dr.put(DRConstants.replace_e, this.replaceEndIndex);
-                dr.put(DRConstants.expiry_s, this.expiryStartIndex);
-                dr.put(DRConstants.expiry_e, this.expiryEndIndex);
+                dr.put(DRConstants.delete_s, start + step * i);
+                dr.put(DRConstants.delete_e, start + step * (i + 1));
+                dr.put(DRConstants.touch_s, start + step * i);
+                dr.put(DRConstants.touch_e, start + step * (i + 1));
+                dr.put(DRConstants.replace_s, start + step * i);
+                dr.put(DRConstants.replace_e, start + step * (i + 1));
+                dr.put(DRConstants.expiry_s, start + step * i);
+                dr.put(DRConstants.expiry_e, start + step * (i + 1));
 
                 DocRange range = new DocRange(dr);
                 DocumentGenerator dg = null;
@@ -888,13 +981,151 @@ public class TaskRequest {
                 String th_name = task_name + "_" + i;
                 WorkLoadGenerate wlg = new WorkLoadGenerate(th_name, dg, TaskRequest.SDKClientPool, esClient,
                         this.durabilityLevel,
-                        this.docTTL, this.docTTLUnit, this.trackFailures, retry, null);
+                        this.docTTL, this.docTTLUnit, this.trackFailures, retry, this.retryStrategy);
                 wlg.set_collection_for_load(this.bucketName, this.scopeName, this.collectionName);
+                // Workers here own disjoint doc ranges rather than sharing a generator,
+                // so the index only decides which range gets a thread first; every
+                // worker still runs. Ranking keeps this load from monopolising the pool
+                // ahead of other loads' first workers.
+                wlg.workerIndex = i;
                 TaskRequest.loader_tasks.put(th_name, wlg);
                 task_names.add(th_name);
             }
             k += 1;
         }
+
+        body.put("tasks", task_names);
+        body.put("status", true);
+        return new ResponseEntity<>(body, HttpStatus.OK);
+    }
+
+    public ResponseEntity<Map<String, Object>> loadMSMARCODataset() throws IOException {
+        this.log_request();
+        Map<String, Object> body = new HashMap<>();
+        boolean okay = this.validate_doc_load_params();
+        if (!okay) {
+            body.put("error", "Param validation failed");
+            return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        }
+        if (this.vecFilePath == null || this.vecFilePath.trim().isEmpty()) {
+            body.put("error", "vec_file_path is required for MSMARCO loading");
+            return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        }
+        String msmarcoValueType = (this.valueType == null || this.valueType.trim().isEmpty())
+                ? "MSMARCOEmbeddingProduct"
+                : this.valueType.trim();
+        if ("MSMARCOSiftEmbeddingProduct".equals(msmarcoValueType)
+                && (this.baseVectorsFilePath == null || this.baseVectorsFilePath.trim().isEmpty())) {
+            body.put("error", "base_vectors_file_path is required for MSMARCOSiftEmbeddingProduct");
+            return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        }
+
+        EsClient esClient = null;
+        if (this.elastic && this.esServer != null && this.esAPIKey != null) {
+            esClient = new EsClient(this.esServer, this.esAPIKey);
+            esClient.initializeSDK();
+            esClient.deleteESIndex(this.collectionName.replace("_", ""));
+            try {
+                esClient.createESIndex(this.collectionName.replace("_", ""),
+                        this.esSimilarity, null);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        long[] steps = MSMARCOEmbeddingProduct.getSteps();
+        int poolSize = this.processConcurrency;
+        long start_offset = 0, end_offset = 0;
+        if (this.createPercent > 0) {
+            start_offset = this.createStartIndex;
+            end_offset = this.createEndIndex;
+        } else if (this.updatePercent > 0) {
+            start_offset = this.updateStartIndex;
+            end_offset = this.updateEndIndex;
+        } else if (this.expiryPercent > 0) {
+            start_offset = this.expiryStartIndex;
+            end_offset = this.expiryEndIndex;
+        }
+
+        if (end_offset <= start_offset)
+            throw new IllegalArgumentException("No docs to process: start_offset="
+                    + start_offset + " end_offset=" + end_offset);
+        if (start_offset < steps[0] || start_offset >= steps[steps.length - 1])
+            throw new IllegalArgumentException("start_offset " + start_offset + " is outside STEPS bounds ["
+                    + steps[0] + ", " + steps[steps.length - 1] + ")");
+        if (end_offset > steps[steps.length - 1])
+            throw new IllegalArgumentException("end_offset " + end_offset
+                    + " exceeds STEPS upper bound " + steps[steps.length - 1]);
+
+        ArrayList<String> task_names = new ArrayList<String>();
+        HashMap<String, WorkLoadGenerate> pendingTasks = new HashMap<>();
+        int k = 0;
+        while (!(steps[k] <= start_offset && start_offset < steps[k + 1]))
+            k += 1;
+        while (steps[k] < end_offset) {
+            long start = Math.max(start_offset, steps[k]);
+            long end = Math.min(end_offset, steps[k + 1]);
+            int effectivePool = (int) Math.min(poolSize, end - start);
+            long step = (end - start) / effectivePool;
+            for (int i = 0; i < effectivePool; i++) {
+                WorkLoadSettings ws = new WorkLoadSettings(this.keyPrefix,
+                        this.keySize, this.docSize,
+                        this.createPercent, this.readPercent,
+                        this.updatePercent, this.deletePercent, this.expiryPercent, this.processConcurrency,
+                        this.ops, this.loadType, this.keyType, msmarcoValueType,
+                        this.validateDocs, this.gtm, this.validateDeletedDocs, this.mutate,
+                        this.elastic, this.model, this.mockVector,
+                        this.dim, this.base64, this.mutateField,
+                        this.mutationTimeout, this.vecFilePath);
+                ws.baseVectorsFilePath = "MSMARCOSiftEmbeddingProduct".equals(msmarcoValueType)
+                        ? this.baseVectorsFilePath
+                        : this.vecFilePath;
+
+                long workerStart = start + step * i;
+                long workerEnd = (i == effectivePool - 1) ? end : start + step * (i + 1);
+                HashMap<String, Number> dr = new HashMap<>();
+                dr.put(DRConstants.create_s, workerStart);
+                dr.put(DRConstants.create_e, workerEnd);
+                dr.put(DRConstants.read_s, this.readStartIndex);
+                dr.put(DRConstants.read_e, this.readEndIndex);
+                dr.put(DRConstants.update_s, workerStart);
+                dr.put(DRConstants.update_e, workerEnd);
+                dr.put(DRConstants.delete_s, this.deleteStartIndex);
+                dr.put(DRConstants.delete_e, this.deleteEndIndex);
+                dr.put(DRConstants.touch_s, this.touchStartIndex);
+                dr.put(DRConstants.touch_e, this.touchEndIndex);
+                dr.put(DRConstants.replace_s, this.replaceStartIndex);
+                dr.put(DRConstants.replace_e, this.replaceEndIndex);
+                dr.put(DRConstants.expiry_s, workerStart);
+                dr.put(DRConstants.expiry_e, workerEnd);
+
+                DocRange range = new DocRange(dr);
+                DocumentGenerator dg = null;
+
+                ws.dr = range;
+                try {
+                    dg = new DocumentGenerator(ws, ws.keyType, ws.valueType);
+                } catch (Exception e) {
+                    body.put("error", "Failed to create doc generator");
+                    body.put("message", e.toString());
+                    return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+                }
+
+                String task_name = "MSMARCOTask_" + TaskRequest.task_id.incrementAndGet() + k + "_" + ws.dr.create_s
+                        + "_" + ws.dr.create_e;
+                int retry = 0;
+                String th_name = task_name + "_" + i;
+                WorkLoadGenerate wlg = new WorkLoadGenerate(th_name, dg, TaskRequest.SDKClientPool, esClient,
+                        this.durabilityLevel,
+                        this.docTTL, this.docTTLUnit, this.trackFailures, retry, this.retryStrategy);
+                wlg.set_collection_for_load(this.bucketName, this.scopeName, this.collectionName);
+                wlg.workerIndex = i;
+                pendingTasks.put(th_name, wlg);
+                task_names.add(th_name);
+            }
+            k += 1;
+        }
+        TaskRequest.loader_tasks.putAll(pendingTasks);
 
         body.put("tasks", task_names);
         body.put("status", true);

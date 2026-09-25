@@ -18,6 +18,7 @@ import utils.key.ReverseKey;
 import utils.key.SimpleKey;
 import utils.val.Cars;
 import utils.val.PolymorphicDoc;
+import utils.val.EmptyValue;
 import utils.val.Hotel;
 import utils.val.HeterogeneousHotel;
 import utils.val.MiniCars;
@@ -29,6 +30,8 @@ import utils.val.SimpleValue;
 import utils.val.SimpleSubDocValue;
 import utils.val.Vector;
 import utils.val.anySizeValue;
+import utils.val.MSMARCOEmbeddingProduct;
+import utils.val.MSMARCOSiftEmbeddingProduct;
 import utils.val.siftBigANN;
 
 import com.couchbase.client.java.kv.LookupInSpec;
@@ -170,10 +173,16 @@ abstract class KVGenerator{
             this.valInstance = Product.class;
         else if (valClass.equals(siftBigANN.class.getSimpleName()))
             this.valInstance = siftBigANN.class;
+        else if (valClass.equals(MSMARCOEmbeddingProduct.class.getSimpleName()))
+            this.valInstance = MSMARCOEmbeddingProduct.class;
+        else if (valClass.equals(MSMARCOSiftEmbeddingProduct.class.getSimpleName()))
+            this.valInstance = MSMARCOSiftEmbeddingProduct.class;
         else if (valClass.equals(SimpleSubDocValue.class.getSimpleName()))
             this.valInstance = SimpleSubDocValue.class;
         else if (valClass.equals(RandomlyNestedJson.class.getSimpleName()))
             this.valInstance = RandomlyNestedJson.class;
+        else if (valClass.equals(EmptyValue.class.getSimpleName()))
+            this.valInstance = EmptyValue.class;
         else
             this.valInstance = SimpleValue.class;
     }
@@ -190,24 +199,29 @@ abstract class KVGenerator{
             "generate_keys_for_target_vbs", Long.class, Long.class, int[].class);
 
         if (target_vbuckets != null && target_vbuckets.length > 0) {
+            // '*_s'/'*_e' are absolute doc indexes, the same as on every other
+            // code path (TaskRequest.doc_load() sizes its worker pool from
+            // 'createEndIndex - createStartIndex', has_next_create() compares
+            // createItr against create_e). generate_keys_for_target_vbs() takes
+            // a key COUNT as its second argument, so hand it the width of the
+            // range - not '*_e' itself, which asked it for '*_e' keys and then
+            // pushed '*_e' out to '*_s + *_e'. On a (5_000_000, 5_100_000)
+            // create range that turned 100k creates into 5.1M.
             generated_create_keys = (Map<Long, String>)genKeysForTargetVBsFunc.invoke(
-                this.keys, this.ws.dr.create_s, this.ws.dr.create_e, this.target_vbuckets);
+                this.keys, this.ws.dr.create_s,
+                this.ws.dr.create_e - this.ws.dr.create_s, this.target_vbuckets);
             generated_update_keys = (Map<Long, String>)genKeysForTargetVBsFunc.invoke(
-                this.keys, this.ws.dr.update_s, this.ws.dr.update_e, this.target_vbuckets);
+                this.keys, this.ws.dr.update_s,
+                this.ws.dr.update_e - this.ws.dr.update_s, this.target_vbuckets);
             generated_read_keys = (Map<Long, String>)genKeysForTargetVBsFunc.invoke(
-                this.keys, this.ws.dr.read_s, this.ws.dr.read_e, this.target_vbuckets);
+                this.keys, this.ws.dr.read_s,
+                this.ws.dr.read_e - this.ws.dr.read_s, this.target_vbuckets);
             generated_delete_keys = (Map<Long, String>)genKeysForTargetVBsFunc.invoke(
-                this.keys, this.ws.dr.delete_s, this.ws.dr.delete_e, this.target_vbuckets);
+                this.keys, this.ws.dr.delete_s,
+                this.ws.dr.delete_e - this.ws.dr.delete_s, this.target_vbuckets);
             generated_expiry_keys = (Map<Long, String>)genKeysForTargetVBsFunc.invoke(
-                this.keys, this.ws.dr.expiry_s, this.ws.dr.expiry_e, this.target_vbuckets);
-
-            // Because we create '*_e' as 'n' keys,
-            // hence update '*_e' var to track the iteration during next()
-            this.ws.dr.create_e = this.ws.dr.create_s + this.ws.dr.create_e;
-            this.ws.dr.update_e = this.ws.dr.update_s + this.ws.dr.update_e;
-            this.ws.dr.read_e = this.ws.dr.read_s + this.ws.dr.read_e;
-            this.ws.dr.delete_e = this.ws.dr.delete_s + this.ws.dr.delete_e;
-            this.ws.dr.expiry_e = this.ws.dr.expiry_s + this.ws.dr.expiry_e;
+                this.keys, this.ws.dr.expiry_s,
+                this.ws.dr.expiry_e - this.ws.dr.expiry_s, this.target_vbuckets);
         }
     }
 
@@ -221,13 +235,17 @@ abstract class KVGenerator{
         if (this.ws.dr.readItr.get() < this.ws.dr.read_e)
             return true;
         if (this.keyInstance.getSimpleName().equals(CircularKey.class.getSimpleName())) {
-            try {
-                if ((boolean)this.iterationsMethod.invoke(this.keys)) {
-                    this.resetRead();
+            synchronized (this.keys) {
+                if (this.ws.dr.readItr.get() < this.ws.dr.read_e)
                     return true;
+                try {
+                    if ((boolean)this.iterationsMethod.invoke(this.keys)) {
+                        this.resetRead();
+                        return true;
+                    }
+                } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
+                    e1.printStackTrace();
                 }
-            } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
-                e1.printStackTrace();
             }
         }
         return false;
@@ -237,14 +255,18 @@ abstract class KVGenerator{
         if (this.ws.dr.updateItr.get() < this.ws.dr.update_e)
             return true;
         if (this.keyInstance.getSimpleName().equals(CircularKey.class.getSimpleName())) {
-            try {
-                if ((boolean)this.iterationsMethod.invoke(this.keys)) {
-                    this.resetUpdate();
-                    this.ws.mutated += 1;
+            synchronized (this.keys) {
+                if (this.ws.dr.updateItr.get() < this.ws.dr.update_e)
                     return true;
+                try {
+                    if ((boolean)this.iterationsMethod.invoke(this.keys)) {
+                        this.resetUpdate();
+                        this.ws.mutated += 1;
+                        return true;
+                    }
+                } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
+                    e1.printStackTrace();
                 }
-            } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
-                e1.printStackTrace();
             }
         }
         if (TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis())-startTime<ws.mutation_timeout) {
@@ -259,13 +281,17 @@ abstract class KVGenerator{
         if (this.ws.dr.expiryItr.get() < this.ws.dr.expiry_e)
             return true;
         if (this.keyInstance.getSimpleName().equals(CircularKey.class.getSimpleName())) {
-            try {
-                if ((boolean)this.iterationsMethod.invoke(this.keys, null)) {
-                    this.resetExpiry();
+            synchronized (this.keys) {
+                if (this.ws.dr.expiryItr.get() < this.ws.dr.expiry_e)
                     return true;
+                try {
+                    if ((boolean)this.iterationsMethod.invoke(this.keys, null)) {
+                        this.resetExpiry();
+                        return true;
+                    }
+                } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
+                    e1.printStackTrace();
                 }
-            } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
-                e1.printStackTrace();
             }
         }
         return false;
@@ -360,21 +386,24 @@ public class DocumentGenerator extends KVGenerator{
         return this.ws;
     }
 
-    public Tuple2<String, Object> next() {
-        long temp = this.ws.dr.createItr.getAndIncrement();
+    private Tuple2<String, Object> nextCreateAt(long idx) {
         String k = null;
         Object v = null;
-            try {
-                if (this.target_vbuckets != null && this.target_vbuckets.length > 0) {
-                    k = this.generated_create_keys.get(temp);
-                } else {
-                    k = (String) this.keyMethod.invoke(this.keys, temp);
-                }
-                v = (Object) this.valMethod.invoke(this.vals, k);
-            } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
-                e1.printStackTrace();
+        try {
+            if (this.target_vbuckets != null && this.target_vbuckets.length > 0) {
+                k = this.generated_create_keys.get(idx);
+            } else {
+                k = (String) this.keyMethod.invoke(this.keys, idx);
             }
+            v = (Object) this.valMethod.invoke(this.vals, k);
+        } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
+            e1.printStackTrace();
+        }
         return Tuples.of(k, v);
+    }
+
+    public Tuple2<String, Object> next() {
+        return nextCreateAt(this.ws.dr.createItr.getAndIncrement());
     }
 
     public Tuple2<String, Object> nextRead() {
@@ -396,6 +425,12 @@ public class DocumentGenerator extends KVGenerator{
 
     public Tuple2<String, Object> nextUpdate() {
         long temp = this.ws.dr.updateItr.getAndIncrement();
+        // Guard: another thread may have passed has_next_update()'s fast-path
+        // check while we were also passing it, causing both to claim the same
+        // last slot. If temp is past the end, return null so nextUpdateBatch()
+        // can retry via has_next_update() which will perform the CircularKey
+        // reset under its synchronized block.
+        if (temp >= this.ws.dr.update_e) return null;
         String k = null;
         Object v = null;
             try {
@@ -413,6 +448,7 @@ public class DocumentGenerator extends KVGenerator{
 
     public Tuple2<String, Object> nextExpiry() {
         long temp = this.ws.dr.expiryItr.getAndIncrement();
+        if (temp >= this.ws.dr.expiry_e) return null; // TOCTOU guard (mirrors nextUpdate)
         String k = null;
         Object v = null;
             try {
@@ -474,8 +510,10 @@ public class DocumentGenerator extends KVGenerator{
     public List<Tuple2<String, Object>> nextInsertBatch() {
         List<Tuple2<String, Object>> docs = new ArrayList<Tuple2<String,Object>>();
         int count = 0;
-        while (this.has_next_create() && count<ws.batchSize*ws.creates/100) {
-            docs.add(this.next());
+        while (count < ws.batchSize * ws.creates / 100) {
+            long idx = this.ws.dr.createItr.getAndIncrement();
+            if (idx >= this.ws.dr.create_e) break;
+            docs.add(nextCreateAt(idx));
             count += 1;
         }
         return docs;
@@ -495,7 +533,9 @@ public class DocumentGenerator extends KVGenerator{
         List<Tuple2<String, Object>> docs = new ArrayList<Tuple2<String,Object>>();
         int count = 0;
         while (this.has_next_update() && count<ws.batchSize*ws.updates/100) {
-            docs.add(this.nextUpdate());
+            Tuple2<String, Object> doc = this.nextUpdate();
+            if (doc == null) continue; // TOCTOU: another thread claimed the last slot; retry
+            docs.add(doc);
             count += 1;
         }
         return docs;
@@ -505,7 +545,9 @@ public class DocumentGenerator extends KVGenerator{
         List<Tuple2<String, Object>> docs = new ArrayList<Tuple2<String,Object>>();
         int count = 0;
         while (this.has_next_expiry() && count<ws.batchSize*ws.expiry/100) {
-            docs.add(this.nextExpiry());
+            Tuple2<String, Object> doc = this.nextExpiry();
+            if (doc == null) continue; // TOCTOU guard (mirrors nextUpdateBatch)
+            docs.add(doc);
             count += 1;
         }
         return docs;

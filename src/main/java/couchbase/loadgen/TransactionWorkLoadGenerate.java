@@ -129,7 +129,7 @@ public class TransactionWorkLoadGenerate extends Task{
     }
 
     @Override
-    public void run() {
+    protected void runTask() {
         Collection col_obj;
         String scope_name = (String)this.load_pattern.get(0);
         String col_name = (String)this.load_pattern.get(1);

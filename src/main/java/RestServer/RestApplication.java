@@ -57,6 +57,19 @@ class RestHandlers {
         return taskRequest.get_task_result();
     }
 
+    // Non-blocking: returns live progress without waiting for the task to finish
+    @PostMapping(value="/get_task_progress")
+    public ResponseEntity<Map<String, Object>> get_task_progress(@RequestBody TaskRequest taskRequest) {
+        try {
+            return taskRequest.get_task_progress();
+        } catch (Exception e) {
+            Map<String, Object> body = new HashMap<>();
+            body.put("error", e.toString());
+            body.put("status", false);
+            return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        }
+    }
+
     // Submit task to TaskManager
     @PostMapping(value="/submit_task")
     public ResponseEntity<Map<String, Object>> submit_task(@RequestBody TaskRequest taskRequest) {
@@ -138,6 +151,18 @@ class RestHandlers {
     public ResponseEntity<Map<String, Object>> check_sift_file(@RequestBody TaskRequest taskRequest) {
         try {
             return taskRequest.check_sift_file();
+        } catch (Exception e) {
+            Map<String, Object> body = new HashMap<>();
+            body.put("error", e.toString());
+            body.put("status", false);
+            return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @PostMapping(value="/msmarco_doc_load")
+    public ResponseEntity<Map<String, Object>> msmarco_doc_load(@RequestBody TaskRequest taskRequest) {
+        try {
+            return taskRequest.loadMSMARCODataset();
         } catch (Exception e) {
             Map<String, Object> body = new HashMap<>();
             body.put("error", e.toString());

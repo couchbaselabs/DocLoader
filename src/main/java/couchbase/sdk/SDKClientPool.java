@@ -1,24 +1,38 @@
 package couchbase.sdk;
 
-import java.util.ArrayList;
-import java.util.ConcurrentModificationException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
 
+/**
+ * One SDK client per bucket, shared by every worker loading that bucket.
+ *
+ * There used to be a queue of idle clients per bucket plus a cache keyed by
+ * bucket:scope:collection, because a client carried its target collection in a mutable
+ * field and therefore could only serve one collection at a time. That design had two
+ * defects that no amount of locking around the cache would remove:
+ *
+ *  - acquire was a check-then-act (cache lookup, then refcount increment). A release
+ *    landing in that window dropped the refcount to zero, returned the client to the
+ *    idle queue, and let a third thread re-point it at a different collection - while
+ *    the first thread was still using it. Its documents then went to the wrong
+ *    collection, and the failures were reported against the collection it thought it
+ *    was writing to.
+ *  - two concurrent misses on the same key each took a client and the second cache
+ *    entry overwrote the first, so one client was never returned to the pool. With a
+ *    finite pool, repeated leaks eventually wedged every worker in take().
+ *
+ * SDKClient no longer holds collection state (see SDKClient.collection(scope, coll)),
+ * so a client is just a bucket handle. Cluster/Bucket/Collection are thread-safe, so
+ * one handle serves any number of concurrent workers on any number of collections.
+ * There is nothing left to check, to count, to hand out or to give back.
+ */
 public class SDKClientPool {
     static Logger logger = LogManager.getLogger(SDKClientPool.class);
-    
-    // Thread-safe client collection cache
-    private ConcurrentHashMap<String, ClientInfo> clientCache = new ConcurrentHashMap<>();
-    
-    // Thread-safe client pools by bucket
-    private ConcurrentHashMap<String, ConcurrentLinkedQueue<SDKClient>> idleClients = new ConcurrentHashMap<>();
-    private ConcurrentHashMap<String, ConcurrentLinkedQueue<SDKClient>> busyClients = new ConcurrentHashMap<>();
+
+    private final ConcurrentHashMap<String, SDKClient> clients = new ConcurrentHashMap<>();
 
     public SDKClientPool() {
         super();
@@ -26,142 +40,39 @@ public class SDKClientPool {
 
     public void shutdown() {
         logger.debug("Closing clients from SDKClientPool and shutting down shared Cluster instances");
-        
-        // Process all buckets
-        for (String bucketName : idleClients.keySet()) {
-            ConcurrentLinkedQueue<SDKClient> idle = idleClients.get(bucketName);
-            ConcurrentLinkedQueue<SDKClient> busy = busyClients.get(bucketName);
-            
-            if (idle != null) {
-                for (SDKClient client : idle) {
-                    client.disconnectCluster();
-                }
-            }
-            if (busy != null) {
-                for (SDKClient client : busy) {
-                    client.disconnectCluster();
-                }
-            }
+        for (SDKClient client : clients.values()) {
+            client.disconnectCluster();
         }
-        
-        // Clear all data structures
-        clientCache.clear();
-        idleClients.clear();
-        busyClients.clear();
-        
-        // Shutdown shared Cluster manager
+        clients.clear();
         SharedClusterManager.shutdownAll();
     }
 
     public void force_close_clients_for_bucket(String bucket_name) {
-        ConcurrentLinkedQueue<SDKClient> idle = idleClients.get(bucket_name);
-        ConcurrentLinkedQueue<SDKClient> busy = busyClients.get(bucket_name);
-        
-        if (idle != null) {
-            for (SDKClient client : idle) {
-                client.disconnectCluster();
-            }
-            idleClients.remove(bucket_name);
-        }
-        
-        if (busy != null) {
-            for (SDKClient client : busy) {
-                client.disconnectCluster();
-            }
-            busyClients.remove(bucket_name);
+        SDKClient client = clients.remove(bucket_name);
+        if (client != null) {
+            client.disconnectCluster();
         }
     }
 
+    /**
+     * req_clients is accepted for wire compatibility with existing callers but is no
+     * longer meaningful: a single shared handle per bucket serves every worker, so
+     * there is no pool to size and no worker ever blocks waiting for a client.
+     */
     public void create_clients(String bucket_name, Server server, int req_clients) throws Exception {
-        // Initialize thread-safe client pools for this bucket if not already present
-        idleClients.computeIfAbsent(bucket_name, k -> new ConcurrentLinkedQueue<>());
-        busyClients.computeIfAbsent(bucket_name, k -> new ConcurrentLinkedQueue<>());
-        
-        ConcurrentLinkedQueue<SDKClient> idlePool = idleClients.get(bucket_name);
-        
-        for (int i = 0; i < req_clients; i++) {
-            SDKClient client = new SDKClient(server, bucket_name);
-            client.initialiseSDK();
-            idlePool.add(client);
+        if (clients.containsKey(bucket_name)) {
+            return;
         }
-    }
-
-    public SDKClient get_client_for_bucket(String bucket_name, String scope, String collection) {
-        String cache_key = bucket_name + ":" + scope + ":" + collection;
-
-        // Check if client is already cached for this collection
-        ClientInfo existing = clientCache.get(cache_key);
+        SDKClient client = new SDKClient(server, bucket_name);
+        client.initialiseSDK();
+        SDKClient existing = clients.putIfAbsent(bucket_name, client);
         if (existing != null) {
-            existing.counter.incrementAndGet();
-            return existing.client;
-        }
-        
-        // Get idle client pool for this bucket
-        ConcurrentLinkedQueue<SDKClient> idlePool = idleClients.get(bucket_name);
-        if (idlePool == null || idlePool.isEmpty()) {
-            return null;
-        }
-        
-        // Get client from idle pool atomically
-        SDKClient client = idlePool.poll();
-        if (client == null) {
-            return null;
-        }
-        
-        // Configure client for this collection
-        client.selectCollection(scope, collection);
-        
-        // Add to busy pool atomically
-        busyClients.computeIfAbsent(bucket_name, k -> new ConcurrentLinkedQueue<>()).add(client);
-        
-        // Cache client reference with thread-safe counter
-        clientCache.put(cache_key, new ClientInfo(client, new AtomicInteger(1)));
-        
-        return client;
-    }
-
-    public void release_client(SDKClient client) {
-        if (client == null || client.bucket == null) {
-            return;
-        }
-
-        String bucket_key = client.bucket;
-        String cache_key = bucket_key + ":" + client.scope + ":" + client.collection;
-
-        // Get cached client info
-        ClientInfo info = clientCache.get(cache_key);
-        if (info == null) {
-            return;
-        }
-
-        // Decrement counter atomically
-        int newCount = info.counter.decrementAndGet();
-
-        if (newCount == 0) {
-            // Remove from cache atomically
-            clientCache.remove(cache_key);
-            
-            // Remove from busy pool and add to idle pool atomically
-            ConcurrentLinkedQueue<SDKClient> busyPool = busyClients.get(bucket_key);
-            ConcurrentLinkedQueue<SDKClient> idlePool = idleClients.get(bucket_key);
-            
-            if (busyPool != null) {
-                busyPool.remove(client);
-            }
-            if (idlePool != null) {
-                idlePool.add(client);
-            }
+            // Lost a concurrent create for the same bucket - drop ours.
+            client.disconnectCluster();
         }
     }
-    
-    // Helper class for cached client info with thread-safe counter
-    private static class ClientInfo {
-        SDKClient client;
-        AtomicInteger counter;
-        
-        ClientInfo(SDKClient client, AtomicInteger counter) {
-            this.client = client;
-            this.counter = counter;
-        }
+
+    public SDKClient get_client_for_bucket(String bucket_name) {
+        return clients.get(bucket_name);
     }
 }

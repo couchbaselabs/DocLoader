@@ -28,26 +28,30 @@ public class SharedClusterManager {
     // Increased from default 5 to 500 to support 5,000 collections loading in parallel
     private static final int DEFAULT_KV_CONNECTIONS = 5;
 
-    // Shared ClusterEnvironment with optimized connection settings
+    // Shared ClusterEnvironment for TLS connections
     private static ClusterEnvironment sharedEnvironment;
 
-    // Track whether environment has been shutdown
-    private static volatile boolean environmentShutdown = false;
+    // Shared ClusterEnvironment for non-TLS connections
+    private static ClusterEnvironment sharedNonTLSEnvironment;
+
+    // Track whether environments have been shutdown
+    private static volatile boolean tlsEnvironmentShutdown = false;
+    private static volatile boolean nonTlsEnvironmentShutdown = false;
 
     private static final Object environmentLock = new Object();
 
     // Store cluster instances per server connection string
     private static ConcurrentHashMap<String, ClusterWrapper> clusterMap = new ConcurrentHashMap<>();
 
-    // Initialize the shared environment (lazy initialization with recreation)
+    // Initialize the shared TLS environment (lazy initialization with recreation)
     private static void initializeSharedEnvironment() {
-        if (sharedEnvironment == null || environmentShutdown) {
+        if (sharedEnvironment == null || tlsEnvironmentShutdown) {
             synchronized (environmentLock) {
                 // Double-check under lock
-                if (sharedEnvironment == null || environmentShutdown) {
+                if (sharedEnvironment == null || tlsEnvironmentShutdown) {
                     try {
-                        if (sharedEnvironment != null && environmentShutdown) {
-                            logger.info("Shared Cluster Environment was shutdown, recreating");
+                        if (sharedEnvironment != null && tlsEnvironmentShutdown) {
+                            logger.info("Shared TLS Cluster Environment was shutdown, recreating");
                         }
                         
                         sharedEnvironment = ClusterEnvironment.builder()
@@ -57,10 +61,36 @@ public class SharedClusterManager {
                                 .ioConfig(IoConfig.enableDnsSrv(true))
                                 .ioConfig(IoConfig.numKvConnections(DEFAULT_KV_CONNECTIONS))
                                 .build();
-                        environmentShutdown = false;
-                        logger.info("Shared Cluster Environment initialized with " + DEFAULT_KV_CONNECTIONS + " KV connections for massively parallel collection loads");
+                        tlsEnvironmentShutdown = false;
+                        logger.info("Shared TLS Cluster Environment initialized with " + DEFAULT_KV_CONNECTIONS + " KV connections");
                     } catch (Exception e) {
-                        logger.error("Failed to initialize shared Cluster Environment", e);
+                        logger.error("Failed to initialize shared TLS Cluster Environment", e);
+                    }
+                }
+            }
+        }
+    }
+
+    // Initialize the shared non-TLS environment (lazy initialization with recreation)
+    private static void initializeSharedNonTLSEnvironment() {
+        if (sharedNonTLSEnvironment == null || nonTlsEnvironmentShutdown) {
+            synchronized (environmentLock) {
+                // Double-check under lock
+                if (sharedNonTLSEnvironment == null || nonTlsEnvironmentShutdown) {
+                    try {
+                        if (sharedNonTLSEnvironment != null && nonTlsEnvironmentShutdown) {
+                            logger.info("Shared non-TLS Cluster Environment was shutdown, recreating");
+                        }
+                        
+                        sharedNonTLSEnvironment = ClusterEnvironment.builder()
+                                .timeoutConfig(TimeoutConfig.builder().kvTimeout(Duration.ofSeconds(10)))
+                                .ioConfig(IoConfig.enableDnsSrv(true))
+                                .ioConfig(IoConfig.numKvConnections(DEFAULT_KV_CONNECTIONS))
+                                .build();
+                        nonTlsEnvironmentShutdown = false;
+                        logger.info("Shared non-TLS Cluster Environment initialized with " + DEFAULT_KV_CONNECTIONS + " KV connections");
+                    } catch (Exception e) {
+                        logger.error("Failed to initialize shared non-TLS Cluster Environment", e);
                     }
                 }
             }
@@ -110,25 +140,46 @@ public class SharedClusterManager {
     }
 
     /**
-     * Shutdown all cluster instances and the shared environment
+     * Shutdown all cluster instances and the shared environments
      */
     public static synchronized void shutdownAll() {
         logger.info("Shutting down all shared Cluster instances");
         for (ClusterWrapper wrapper : clusterMap.values()) {
             if (wrapper.cluster != null) {
-                wrapper.cluster.disconnect();
+                try {
+                    wrapper.cluster.disconnect();
+                } catch (Exception e) {
+                    logger.warn("Error disconnecting cluster: " + e.getMessage());
+                }
             }
         }
         clusterMap.clear();
 
-        if (sharedEnvironment != null) {
-            sharedEnvironment.shutdown();
-            environmentShutdown = true;
-            logger.info("Shared Cluster Environment shutdown complete");
+        if (sharedEnvironment != null && !tlsEnvironmentShutdown) {
+            try {
+                sharedEnvironment.shutdown();
+            } catch (Exception e) {
+                logger.warn("Error shutting down TLS environment: " + e.getMessage());
+            }
+            tlsEnvironmentShutdown = true;
+            logger.info("Shared TLS Cluster Environment shutdown complete");
+        }
+
+        if (sharedNonTLSEnvironment != null && !nonTlsEnvironmentShutdown) {
+            try {
+                sharedNonTLSEnvironment.shutdown();
+            } catch (Exception e) {
+                logger.warn("Error shutting down non-TLS environment: " + e.getMessage());
+            }
+            nonTlsEnvironmentShutdown = true;
+            logger.info("Shared non-TLS Cluster Environment shutdown complete");
         }
     }
 
     private static Cluster createCluster(Server server) throws AuthenticationFailureException {
+        initializeSharedEnvironment();
+        initializeSharedNonTLSEnvironment();
+
         ClusterOptions clusterOptions;
         try {
             if (server.memcached_port.equals("11207")) {
@@ -136,7 +187,7 @@ public class SharedClusterManager {
                         .environment(sharedEnvironment);
             } else {
                 clusterOptions = ClusterOptions.clusterOptions(server.rest_username, server.rest_password)
-                        .environment(createNonTLSEnvironment());
+                        .environment(sharedNonTLSEnvironment);
             }
 
             Cluster cluster = Cluster.connect(server.ip, clusterOptions);
@@ -150,14 +201,6 @@ public class SharedClusterManager {
             logger.error("Failed to connect Cluster to server: " + server.ip, e);
             throw new RuntimeException("Cluster connection failed", e);
         }
-    }
-
-    private static ClusterEnvironment createNonTLSEnvironment() {
-        return ClusterEnvironment.builder()
-                .timeoutConfig(TimeoutConfig.builder().kvTimeout(Duration.ofSeconds(10)))
-                .ioConfig(IoConfig.enableDnsSrv(true))
-                .ioConfig(IoConfig.numKvConnections(DEFAULT_KV_CONNECTIONS))
-                .build();
     }
 
     private static String getClusterKey(Server server) {
