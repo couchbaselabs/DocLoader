@@ -6,8 +6,12 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Character-length bounds for a generated String, with an optional long tail so a small
+ * Character-length target for a generated String, with an optional long tail so a small
  * fraction of documents carry outsized values (index key limits, planner cost estimation).
+ *
+ * max() is a hard ceiling and is never exceeded. min() is a target rather than a guarantee:
+ * text is emitted in whole words and phrases, so a value can land short of it rather than
+ * being truncated mid-word. The same applies within the long-tail branch.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)

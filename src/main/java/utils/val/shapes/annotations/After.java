@@ -20,4 +20,12 @@ public @interface After {
     int minDays() default 1;
 
     int maxDays() default 30;
+
+    /**
+     * Minute-level offsets, for pairs that are minutes apart rather than days. When
+     * maxMinutes() is set it takes precedence over the day bounds.
+     */
+    int minMinutes() default 0;
+
+    int maxMinutes() default 0;
 }

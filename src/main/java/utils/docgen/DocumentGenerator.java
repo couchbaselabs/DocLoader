@@ -151,9 +151,15 @@ abstract class KVGenerator{
             this.valInstance = Hotel.class;
         else if (valClass.equals(HeterogeneousHotel.class.getSimpleName()))
             this.valInstance = HeterogeneousHotel.class;
-        else if (valClass.startsWith(PolymorphicDoc.NAME))
-            // Accepts a ":type1,type2" suffix selecting which document types to load.
+        else if (valClass.equals(PolymorphicDoc.NAME)
+                || valClass.startsWith(PolymorphicDoc.NAME + ":")) {
+            // Accepts an optional ":type1,type2=weight" suffix selecting which types to load.
+            // Validated here rather than in the constructor below: that one is invoked
+            // reflectively and its InvocationTargetException is swallowed, so a bad type would
+            // otherwise surface later as an unrelated null-target failure.
+            PolymorphicDoc.validate(valClass);
             this.valInstance = PolymorphicDoc.class;
+        }
         else if (valClass.equals(Cars.class.getSimpleName()))
             this.valInstance = Cars.class;
         else if (valClass.equals(MiniCars.class.getSimpleName()))

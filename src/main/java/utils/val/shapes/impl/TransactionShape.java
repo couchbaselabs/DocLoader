@@ -68,10 +68,11 @@ public class TransactionShape implements DocShape {
     String startDateTime;
 
     // Always later than the start, so range predicates over the pair return sensible results.
+    // Minutes rather than days: a point-of-sale transaction lasts minutes, not days.
     @Path("Transaction.EndDateTime._value")
     @Kind(SCALAR)
     @DateString(format = STAMP)
-    @After(value = "startDateTime", minDays = 0, maxDays = 2)
+    @After(value = "startDateTime", minMinutes = 1, maxMinutes = 45)
     String endDateTime;
 
     @Path("Transaction.Total._value")

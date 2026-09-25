@@ -17,6 +17,10 @@ public final class PoolResolver {
     private PoolResolver() {
     }
 
+    public static int size(Class<?> owner, String poolName) {
+        return resolve(owner, poolName).size();
+    }
+
     public static Object pick(Class<?> owner, String poolName, Random random) {
         List<?> pool = resolve(owner, poolName);
         return pool.get(random.nextInt(pool.size()));

@@ -421,9 +421,24 @@ public final class ShapeWalker {
             throw new IllegalStateException(owner.getName() + "." + field.getName()
                     + " is OBJECT_DYNAMIC_KEYS but has no @ChoiceFrom naming the key pool");
         }
+        // A size the pool cannot satisfy is a shape-authoring mistake, not a runtime condition,
+        // so it is rejected rather than quietly producing a smaller object.
+        int poolSize = PoolResolver.size(owner, keySource.value());
+        int maxRequested = size == null ? 3 : Math.max(size.max(), size.largeProb() > 0 ? size.largeMax() : size.max());
+        if (maxRequested > poolSize) {
+            throw new IllegalStateException(owner.getName() + "." + field.getName()
+                    + " asks for up to " + maxRequested + " distinct keys but pool '"
+                    + keySource.value() + "' holds only " + poolSize);
+        }
         JsonObject obj = JsonObject.create();
+        // Keys are sampled without replacement: a repeat would overwrite the previous entry and
+        // silently leave fewer entries than @ArraySize asked for.
+        Set<String> used = new HashSet<String>();
         for (int i = 0; i < n; i++) {
-            String key = String.valueOf(PoolResolver.pick(owner, keySource.value(), ctx.random));
+            String key;
+            do {
+                key = String.valueOf(PoolResolver.pick(owner, keySource.value(), ctx.random));
+            } while (!used.add(key));
             obj.put(key, buildObject(valueType, ctx, i + 1, depth));
         }
         return obj;
@@ -510,7 +525,9 @@ public final class ShapeWalker {
         } else {
             start = EPOCH_BASE;
         }
-        LocalDateTime when = start.plus(between(ctx, after.minDays(), after.maxDays()), ChronoUnit.DAYS);
+        LocalDateTime when = after.maxMinutes() > 0
+                ? start.plus(between(ctx, after.minMinutes(), after.maxMinutes()), ChronoUnit.MINUTES)
+                : start.plus(between(ctx, after.minDays(), after.maxDays()), ChronoUnit.DAYS);
         return format(when, pattern, ctx);
     }
 

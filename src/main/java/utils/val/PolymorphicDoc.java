@@ -98,6 +98,14 @@ public class PolymorphicDoc {
         return types.isEmpty() ? null : types;
     }
 
+    /**
+     * Rejects an unusable valueType before the loader gets far enough to fail obscurely.
+     * Throws IllegalArgumentException naming the problem and the available types.
+     */
+    public static void validate(String valueType) {
+        new ShapeRegistry(typeFilter(valueType));
+    }
+
     public JsonObject next(String key) {
         long seq = sequenceOf(key);
         Class<?> shapeClass = this.registry.pick(new Random(key.hashCode()));

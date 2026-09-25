@@ -58,16 +58,23 @@ public class ShapeRegistry {
         discovered.sort(Comparator.comparing(s -> s.getClass().getName()));
 
         this.cumulativeWeights = new int[discovered.size()];
-        int running = 0;
+        // Accumulated as a long: individually valid overrides can still sum past int range,
+        // which would leave a negative total and fail inside Random.nextInt.
+        long running = 0;
         for (int i = 0; i < discovered.size(); i++) {
             DocShape shape = discovered.get(i);
             Integer override = filtered ? typeWeights.get(shape.type()) : null;
             running += override != null ? override.intValue() : shape.weight();
-            this.cumulativeWeights[i] = running;
+            if (running > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException(
+                        "Total weight exceeds " + Integer.MAX_VALUE
+                                + ". Weights are relative, so use smaller numbers.");
+            }
+            this.cumulativeWeights[i] = (int) running;
             this.shapeClasses.add(shape.getClass());
             this.shapeTypes.add(shape.type());
         }
-        this.totalWeight = running;
+        this.totalWeight = (int) running;
     }
 
     public Class<?> pick(Random random) {
