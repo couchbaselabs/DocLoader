@@ -37,6 +37,12 @@ public class MSMARCOEmbeddingProduct implements Closeable {
     // that line in the .vec file. It is read one entry at a time via a positional
     // read rather than slurped into a long[] — for an 8.8M-line source that array
     // is ~70MB, and every generator instance would hold its own private copy.
+    // Optional accelerator. When a binary sidecar exists for this source we read
+    // primitives straight out of it and skip text parsing entirely; when it does not,
+    // everything below this line is the unchanged text path. The sidecar is never
+    // built on demand -- see SparseVectorStore for why.
+    private SparseVectorStore store;
+
     // Path only, not an open channel: see offsetOf().
     private String idxFilePath;
 
@@ -56,24 +62,31 @@ public class MSMARCOEmbeddingProduct implements Closeable {
         this.sourcePath = resolveSourcePath(ws);
 
         try {
-            this.idxFilePath = ensureIndex(sourcePath);
-            this.fileChannel = FileChannel.open(Paths.get(sourcePath), StandardOpenOption.READ);
+            this.store = SparseVectorStore.openIfPresent(sourcePath);
+            if (store == null) {
+                // Both belong to the text path only. Opening them anyway when the sidecar
+                // is in use would leave every generator holding a descriptor it never
+                // reads, on top of the sidecar's own -- and nothing in the repo closes a
+                // generator while ulimit -n is 1024 on the volume hosts. See offsetOf().
+                this.idxFilePath = ensureIndex(sourcePath);
+                this.fileChannel = FileChannel.open(Paths.get(sourcePath), StandardOpenOption.READ);
+            }
 
             if (ws.creates > 0 && ws.dr != null) {
                 initRangeBounds(ws.dr.create_s);
                 this.workerStartRecord = ws.dr.create_s;
                 this.isMutation = false;
-                seekToRecord(ws.dr.create_s);
+                positionAt(ws.dr.create_s);
             } else if (ws.updates > 0 && ws.dr != null) {
                 initRangeBounds(ws.dr.update_s);
                 this.workerStartRecord = ws.dr.update_s;
                 this.isMutation = true;
-                seekToRecord(rangeStart + ((workerStartRecord - rangeStart + ws.mutated) % rangeSize));
+                positionAt(rangeStart + ((workerStartRecord - rangeStart + ws.mutated) % rangeSize));
             } else if (ws.expiry > 0 && ws.dr != null) {
                 initRangeBounds(ws.dr.expiry_s);
                 this.workerStartRecord = ws.dr.expiry_s;
                 this.isMutation = true;
-                seekToRecord(ws.dr.expiry_s);
+                positionAt(ws.dr.expiry_s);
             }
         } catch (IOException e) {
             throw new RuntimeException("Failed to initialize MSMARCO embedding stream: " + e.getMessage(), e);
@@ -180,6 +193,15 @@ public class MSMARCOEmbeddingProduct implements Closeable {
         currentRecord = recordIndex;
     }
 
+    // With the sidecar a record is addressed by index, so positioning is just an
+    // assignment; the text path has to move the stream.
+    private void positionAt(long recordIndex) throws IOException {
+        if (store != null)
+            currentRecord = recordIndex;
+        else
+            seekToRecord(recordIndex);
+    }
+
     private void initRangeBounds(long docIndex) {
         for (int i = 0; i < STEPS.length - 1; i++) {
             if (docIndex >= STEPS[i] && docIndex < STEPS[i + 1]) {
@@ -199,11 +221,12 @@ public class MSMARCOEmbeddingProduct implements Closeable {
         if (isMutation) {
             long targetRecord = rangeStart + ((keyNum - rangeStart + ws.mutated) % rangeSize);
             if (targetRecord != currentRecord) {
-                seekToRecord(targetRecord);
+                positionAt(targetRecord);
             }
         }
 
-        Object sparseEmbedding = readNextEmbedding();
+        Object sparseEmbedding = store != null ? store.read(currentRecord)
+                                              : readNextEmbedding();
         currentRecord++;
 
         // Metadata based on range boundaries
@@ -414,6 +437,10 @@ public class MSMARCOEmbeddingProduct implements Closeable {
 
     @Override
     public void close() throws IOException {
+        if (store != null) {
+            store.close();
+            store = null;
+        }
         // Do not close lineReader — closing Channels.newInputStream wraps would close fileChannel
         lineReader = null;
         if (fileChannel != null) {
