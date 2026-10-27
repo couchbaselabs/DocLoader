@@ -48,24 +48,29 @@ public class SimpleKey {
     }
 
     public Map<Long, String> generate_keys_for_target_vbs(Long doc_index, Long num_keys, int[] target_vbs) {
-        int keys_generated = 0;
-        Integer vb_of_key;
-        long key_index = doc_index;
-        String key;
+        // Index i is the i'th key, counted from key index 0, that lands in
+        // target_vbs, so a key never depends on where the window starts
         Map<Long, String> generated_keys = new HashMap<Long, String>();
+        if (num_keys <= 0)
+            return generated_keys;
 
-        while(keys_generated < num_keys) {
-            key = this.next(key_index);
-            key_index ++;
+        boolean[] is_target = new boolean[total_vbs];
+        for (int vb_num : target_vbs) {
+            if (vb_num < 0 || vb_num >= total_vbs)
+                throw new IllegalArgumentException("target vbucket " + vb_num
+                        + " is outside the bucket's " + total_vbs + " vbuckets");
+            is_target[vb_num] = true;
+        }
 
-            vb_of_key = this.get_vbucket_for_key(key);
-            for (int vb_num : target_vbs) {
-                if (vb_num == vb_of_key) {
-                    generated_keys.put(doc_index, key);
-                    doc_index ++;
-                    keys_generated ++;
-                    break;
-                }
+        // Cost grows with end / (fraction of vbs targeted)
+        long end = doc_index + num_keys;
+        long matched = 0;
+        for (long key_index = 0; matched < end; key_index++) {
+            String key = this.next(key_index);
+            if (is_target[this.get_vbucket_for_key(key)]) {
+                if (matched >= doc_index)
+                    generated_keys.put(matched, key);
+                matched++;
             }
         }
         return generated_keys;
