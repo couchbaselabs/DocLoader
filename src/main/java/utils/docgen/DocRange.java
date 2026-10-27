@@ -49,6 +49,13 @@ public class DocRange {
     public AtomicLong subdocReadItr;
     public AtomicLong subdocRemoveItr;
 
+    // When non-null, update/read indices are emitted in this permutation's
+    // order instead of monotonically. Each is stateless and built once, so it
+    // adds no shared mutable state on top of updateItr/readItr (no reset
+    // needed on re-runs).
+    public IndexShuffler updateShuffler;
+    public IndexShuffler readShuffler;
+
     public DocRange(HashMap<String, Number> ranges) {
         super();
 
@@ -87,6 +94,37 @@ public class DocRange {
         this.subdocUpsertItr = new AtomicLong(this.subdocUpsert_s);
         this.subdocReadItr = new AtomicLong(this.subdocRead_s);
         this.subdocRemoveItr = new AtomicLong(this.subdocRemove_s);
+    }
+
+    /**
+     * Enables shuffled (non-sequential) emission of update keys over the
+     * current [update_s, update_e) range. Call this only after update_e is
+     * final (e.g. after target-vbucket key generation rewrites it). The seed is
+     * derived from the range bounds so the order is reproducible across re-runs
+     * yet differs between distinct ranges.
+     */
+    public void initUpdateShuffle() {
+        long span = update_e - update_s;
+        if (span > 1) {
+            long seed = (update_s * 0x9E3779B97F4A7C15L) ^ (update_e + 0xD1B54A32D192ED03L);
+            this.updateShuffler = new IndexShuffler(span, seed);
+        }
+    }
+
+    /**
+     * Enables shuffled (non-sequential) emission of read keys over the
+     * current [read_s, read_e) range. Call this only after read_e is final
+     * (e.g. after target-vbucket key generation rewrites it). The seed is
+     * derived from the range bounds so the order is reproducible across
+     * re-runs yet differs between distinct ranges (and from the update
+     * shuffle, since the read and update ranges differ).
+     */
+    public void initReadShuffle() {
+        long span = read_e - read_s;
+        if (span > 1) {
+            long seed = (read_s * 0x9E3779B97F4A7C15L) ^ (read_e + 0xD1B54A32D192ED03L);
+            this.readShuffler = new IndexShuffler(span, seed);
+        }
     }
 
     public void resetAllItrs() {

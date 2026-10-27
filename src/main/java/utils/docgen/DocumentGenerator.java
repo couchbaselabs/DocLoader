@@ -362,11 +362,13 @@ abstract class KVGenerator{
 public class DocumentGenerator extends KVGenerator{
     public DocumentGenerator(WorkLoadSettings ws, String keyClass, String valClass) throws ClassNotFoundException {
         super(ws, keyClass, valClass, 1);
+        maybeInitShuffles();
     }
 
     public DocumentGenerator(WorkLoadSettings ws, String keyClass,
                              String valClass, int iterations) throws ClassNotFoundException {
         super(ws, keyClass, valClass, iterations);
+        maybeInitShuffles();
     }
 
     public DocumentGenerator(WorkLoadSettings ws, String keyClass,
@@ -379,6 +381,18 @@ public class DocumentGenerator extends KVGenerator{
         }
         catch(NoSuchMethodException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
             e.printStackTrace();
+        }
+        // After generate_keys_for_target_vbs(), as it may rewrite update_e/read_e.
+        maybeInitShuffles();
+    }
+
+    // Builds the update-order and read-order permutations once, on the single
+    // generator instance shared by all workers, so every thread observes the
+    // same shuffle.
+    private void maybeInitShuffles() {
+        if (this.ws.randomOrder) {
+            this.ws.dr.initUpdateShuffle();
+            this.ws.dr.initReadShuffle();
         }
     }
 
@@ -408,13 +422,25 @@ public class DocumentGenerator extends KVGenerator{
 
     public Tuple2<String, Object> nextRead() {
         long temp = this.ws.dr.readItr.getAndIncrement();
+        // Guard: another thread may have passed has_next_read()'s fast-path
+        // check while we were also passing it, causing both to claim the same
+        // last slot. If temp is past the end, return null so nextReadBatch()
+        // can retry via has_next_read() (mirrors nextUpdate's TOCTOU guard;
+        // also keeps temp - read_s in range for readShuffler.map() below).
+        if (temp >= this.ws.dr.read_e) return null;
+        // Shuffle only permutes which key this slot maps to; the slot (temp) is
+        // still drawn from the single atomic counter, so coverage and the
+        // TOCTOU guard above are unchanged. A bijection => each key once/pass.
+        long idx = (this.ws.dr.readShuffler != null)
+                ? this.ws.dr.read_s + this.ws.dr.readShuffler.map(temp - this.ws.dr.read_s)
+                : temp;
         String k = null;
         Object v = null;
             try {
                 if (this.target_vbuckets != null && this.target_vbuckets.length > 0) {
-                    k = this.generated_read_keys.get(temp);
+                    k = this.generated_read_keys.get(idx);
                 } else {
-                    k = (String) this.keyMethod.invoke(this.keys, temp);
+                    k = (String) this.keyMethod.invoke(this.keys, idx);
                 }
                 v = (Object) this.valMethod.invoke(this.vals, k);
             } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
@@ -431,13 +457,19 @@ public class DocumentGenerator extends KVGenerator{
         // can retry via has_next_update() which will perform the CircularKey
         // reset under its synchronized block.
         if (temp >= this.ws.dr.update_e) return null;
+        // Shuffle only permutes which key this slot maps to; the slot (temp) is
+        // still drawn from the single atomic counter, so coverage and the
+        // TOCTOU guard above are unchanged. A bijection => each key once/pass.
+        long idx = (this.ws.dr.updateShuffler != null)
+                ? this.ws.dr.update_s + this.ws.dr.updateShuffler.map(temp - this.ws.dr.update_s)
+                : temp;
         String k = null;
         Object v = null;
             try {
                 if (this.target_vbuckets != null && this.target_vbuckets.length > 0) {
-                    k = this.generated_update_keys.get(temp);
+                    k = this.generated_update_keys.get(idx);
                 } else {
-                    k = (String) this.keyMethod.invoke(this.keys, temp);
+                    k = (String) this.keyMethod.invoke(this.keys, idx);
                 }
                 v = (Object) this.valMethod.invoke(this.vals, k);
             } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e1) {
@@ -523,7 +555,9 @@ public class DocumentGenerator extends KVGenerator{
         List<Tuple2<String, Object>> docs = new ArrayList<Tuple2<String,Object>>();
         int count = 0;
         while (this.has_next_read() && count<ws.batchSize*ws.reads/100) {
-            docs.add(this.nextRead());
+            Tuple2<String, Object> doc = this.nextRead();
+            if (doc == null) continue; // TOCTOU guard (mirrors nextUpdateBatch)
+            docs.add(doc);
             count += 1;
         }
         return docs;

@@ -215,6 +215,8 @@ public class TaskRequest {
     private String mutateField;
     @JsonProperty("mutation_timeout")
     private int mutationTimeout;
+    @JsonProperty("random_order")
+    private boolean randomOrder;
     @JsonProperty("base_vectors_file_path")
     private String baseVectorsFilePath;
     @JsonProperty("sift_url")
@@ -348,6 +350,7 @@ public class TaskRequest {
         System.out.println("base64: " + base64);
         System.out.println("mutate_field: " + mutateField);
         System.out.println("mutation_timeout: " + mutationTimeout);
+        System.out.println("random_order: " + randomOrder);
         System.out.println("base_vectors_file_path: " + baseVectorsFilePath);
         System.out.println("sift_url: " + siftURL);
         System.out.println("mongo_server_ip: " + mongoServerIP);
@@ -715,6 +718,9 @@ public class TaskRequest {
         DocumentGenerator dg = null;
 
         ws.dr = range;
+        // Set before constructing the generator: the shuffle permutation is
+        // built in DocumentGenerator's constructor based on this flag.
+        ws.randomOrder = this.randomOrder;
         try {
             dg = new DocumentGenerator(ws, ws.keyType, ws.valueType, this.iterations,
                                        this.numVBuckets, this.targetVBuckets);

@@ -32,6 +32,11 @@ public class WorkLoadSettings extends WorkLoadBase {
     public String mutate_field;
     public int mutation_timeout;
 
+    // When true, update and read keys are each issued in their own shuffled
+    // order rather than monotonically increasing (see
+    // DocRange#initUpdateShuffle / DocRange#initReadShuffle).
+    public boolean randomOrder = false;
+
     public DocRange dr;
     public DocumentGenerator doc_gen;
 
