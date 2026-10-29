@@ -3,6 +3,7 @@ package RestServer;
 import utils.docgen.DRConstants;
 import utils.docgen.DocRange;
 import utils.docgen.DocumentGenerator;
+import utils.docgen.KeyOrder;
 import utils.docgen.WorkLoadSettings;
 import utils.docgen.mongo.MongoDocumentGenerator;
 import couchbase.loadgen.WorkLoadGenerate;
@@ -215,6 +216,11 @@ public class TaskRequest {
     private String mutateField;
     @JsonProperty("mutation_timeout")
     private int mutationTimeout;
+    // sequential (default) | shuffle | zipfian - honoured by doc_load() only
+    @JsonProperty("key_order")
+    private String keyOrder;
+    @JsonProperty("zipf_theta")
+    private double zipfTheta = 0.99;
     @JsonProperty("base_vectors_file_path")
     private String baseVectorsFilePath;
     @JsonProperty("sift_url")
@@ -348,6 +354,7 @@ public class TaskRequest {
         System.out.println("base64: " + base64);
         System.out.println("mutate_field: " + mutateField);
         System.out.println("mutation_timeout: " + mutationTimeout);
+        System.out.println("key_order: " + keyOrder + ", zipf_theta: " + zipfTheta);
         System.out.println("base_vectors_file_path: " + baseVectorsFilePath);
         System.out.println("sift_url: " + siftURL);
         System.out.println("mongo_server_ip: " + mongoServerIP);
@@ -715,6 +722,26 @@ public class TaskRequest {
         DocumentGenerator dg = null;
 
         ws.dr = range;
+        try {
+            ws.keyOrder = KeyOrder.of(this.keyOrder, this.zipfTheta);
+        } catch (IllegalArgumentException e) {
+            body.put("error", e.getMessage());
+            return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        }
+        if (KeyOrder.ZIPFIAN.equals(this.keyOrder)) {
+            // Zipfian revisits hot keys and never reaches others in one pass:
+            // inserts (creates, expiry) would fail with DocumentExistsException, and
+            // validated updates would flag every untouched key as stale.
+            String reason = null;
+            if (this.createPercent > 0 || this.expiryPercent > 0)
+                reason = "key_order=zipfian does not support create/expiry (both insert)";
+            else if (this.updatePercent > 0 && this.validateDocs)
+                reason = "key_order=zipfian does not support updates with validate_docs=true";
+            if (reason != null) {
+                body.put("error", reason);
+                return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+            }
+        }
         try {
             dg = new DocumentGenerator(ws, ws.keyType, ws.valueType, this.iterations,
                                        this.numVBuckets, this.targetVBuckets);

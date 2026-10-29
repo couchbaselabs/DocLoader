@@ -34,6 +34,8 @@ public class WorkLoadSettings extends WorkLoadBase {
 
     public DocRange dr;
     public DocumentGenerator doc_gen;
+    // null = sequential (the original order); set after construction, like dr
+    public KeyOrder keyOrder;
 
     // Sub-doc specific params
     public boolean create_path;

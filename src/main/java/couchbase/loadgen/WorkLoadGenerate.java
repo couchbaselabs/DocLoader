@@ -346,13 +346,16 @@ public class WorkLoadGenerate extends Task{
                     flag = true;
                     List<Tuple2<String, Object>> res = docops.bulkGets(target, docs, getOptions);
                     if (this.dg.ws.validate) {
-                        Map<Object, Object> trnx_res = res.stream().collect(Collectors.toMap(t -> t.get(0), t -> t.get(1)));
-                        Map<Object, Object> trnx_docs = docs.stream().collect(Collectors.toMap(t -> t.get(0), t -> t.get(1)));
+                        // A shuffled/zipfian read batch can name the same key twice: dedup
+                        // only the expected values and check every response, so an error
+                        // on a repeated GET is not dropped
+                        Map<Object, Object> trnx_docs = docs.stream().collect(Collectors.toMap(t -> t.get(0), t -> t.get(1), (a, b) -> a));
                         ObjectMapper om = new ObjectMapper();
                         om.setVisibility(PropertyAccessor.FIELD, Visibility.ANY);
-                        for (Object name : trnx_docs.keySet()) {
+                        for (Tuple2<String, Object> r : res) {
+                            Object name = r.get(0);
                             try {
-                                String a = om.writeValueAsString(trnx_res.get(name));
+                                String a = om.writeValueAsString(r.get(1));
                                 String b = om.writeValueAsString(trnx_docs.get(name));
                                 if(this.dg.ws.expectDeleted) {
                                     if(!a.contains(DocumentNotFoundException.class.getSimpleName())) {
