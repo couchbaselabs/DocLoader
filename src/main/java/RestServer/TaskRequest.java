@@ -642,6 +642,11 @@ public class TaskRequest {
                             failures.put(failed_result.id(), res_obj);
                         });
             }
+            // Reported now, so drop them. The task is kept in completed_tasks only so
+            // later progress/stop calls still find it, and the failed documents are by
+            // far the largest thing it holds: a load that runs through a rebalance can
+            // fail thousands of them per task.
+            task.failedMutations.clear();
             body.put("fail", failures);
             body.put("status", okay);
         } else {
