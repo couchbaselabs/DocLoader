@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +50,16 @@ public class TaskRequest {
     static Object lock_obj = new Object();
     static private ConcurrentHashMap<String, WorkLoadGenerate> loader_tasks = new ConcurrentHashMap<String, WorkLoadGenerate>();
     static private ConcurrentHashMap<String, WorkLoadGenerate> completed_tasks = new ConcurrentHashMap<String, WorkLoadGenerate>();
+    // Names in completed_tasks, oldest first. A finished task keeps its document
+    // generator and failures alive, and a volume run finishes thousands of them per
+    // iteration, so the map is capped rather than left to grow for the life of the
+    // process. Override the cap with -Ddocloader.maxCompletedTasks=<n>.
+    static private ConcurrentLinkedQueue<String> completed_order = new ConcurrentLinkedQueue<String>();
+    static private final int MAX_COMPLETED_TASKS =
+            Integer.getInteger("docloader.maxCompletedTasks", 10000);
+    // Kept under the 600s read timeout TAF uses for get_task_result, so the server
+    // answers before the client gives up.
+    static private final int DEFAULT_RESULT_TIMEOUT_SECS = 540;
     static private ConcurrentHashMap<String, mongo.loadgen.WorkLoadGenerate> mongo_loader_tasks = new ConcurrentHashMap<String, mongo.loadgen.WorkLoadGenerate>();
 
     // Consumed by init_task_manager()
@@ -225,6 +236,10 @@ public class TaskRequest {
     // Used by add_new_task(), get_task_result(), stop_task(), cancel_task()
     @JsonProperty("task_id")
     private String taskName;
+    // Used by get_task_result(): the longest it waits for the task to finish, in
+    // seconds. Not set (0) means DEFAULT_RESULT_TIMEOUT_SECS.
+    @JsonProperty("result_timeout")
+    private int resultTimeout;
     /*
      * Following params are yet to be implemented.
      * -loadType,--loadType <arg> Hot/Cold
@@ -504,8 +519,24 @@ public class TaskRequest {
         this.init_taskmanager();
         TaskRequest.loader_tasks = new ConcurrentHashMap<String, WorkLoadGenerate>();
         TaskRequest.completed_tasks = new ConcurrentHashMap<String, WorkLoadGenerate>();
+        TaskRequest.completed_order = new ConcurrentLinkedQueue<String>();
         body.put("status", true);
         return new ResponseEntity<>(body, HttpStatus.OK);
+    }
+
+    // Keep a finished task for later get_task_result / get_task_progress calls,
+    // evicting the oldest once MAX_COMPLETED_TASKS are held.
+    private static void rememberCompleted(String name, WorkLoadGenerate task) {
+        if (TaskRequest.completed_tasks.put(name, task) == null) {
+            TaskRequest.completed_order.add(name);
+        }
+        while (TaskRequest.completed_order.size() > MAX_COMPLETED_TASKS) {
+            String oldest = TaskRequest.completed_order.poll();
+            if (oldest == null) {
+                break;
+            }
+            TaskRequest.completed_tasks.remove(oldest);
+        }
     }
 
     public ResponseEntity<Map<String, Object>> submit_task() {
@@ -577,13 +608,25 @@ public class TaskRequest {
         if (task != null) {
             Map<String, Object> failures = new HashMap<>();
             boolean okay = false;
+            int waitSecs = this.resultTimeout > 0
+                    ? this.resultTimeout : DEFAULT_RESULT_TIMEOUT_SECS;
             try {
-                okay = TaskRequest.taskManager.getTaskResult(task);
+                Boolean result = TaskRequest.taskManager.getTaskResult(task, waitSecs);
+                if (result == null) {
+                    // Still queued or running: answer now rather than hold this server
+                    // thread. The task stays registered, so the caller can ask again.
+                    body.put("pending", true);
+                    body.put("error", "Task " + this.taskName + " did not finish within "
+                            + waitSecs + "s");
+                    body.put("status", false);
+                    return new ResponseEntity<>(body, HttpStatus.OK);
+                }
+                okay = result;
             } catch (Exception e) {
                 body.put("error", "Exception during getTaskResult: " + e.toString());
             }
             TaskRequest.loader_tasks.remove(this.taskName);
-            TaskRequest.completed_tasks.put(this.taskName, task);
+            TaskRequest.rememberCompleted(this.taskName, task);
             for (HashMap.Entry<String, List<Result>> optype : task.failedMutations.entrySet()) {
                 optype.getValue().forEach(
                         (failed_result) -> {
@@ -638,9 +681,14 @@ public class TaskRequest {
         Map<String, Object> body = new HashMap<>();
         WorkLoadGenerate task = TaskRequest.loader_tasks.get(this.taskName);
         if (task != null) {
+            // Graceful for a running worker: it finishes its batch and exits on the
+            // flag, so a continuous load still reports a clean result. A task that has
+            // not started yet is dropped instead - otherwise it still takes a worker
+            // when its turn comes, and on a saturated pool that can be never.
             task.stop_load();
+            TaskRequest.taskManager.skipTask(task);
             TaskRequest.loader_tasks.remove(this.taskName);
-            TaskRequest.completed_tasks.put(this.taskName, task);
+            TaskRequest.rememberCompleted(this.taskName, task);
             body.put("status", true);
         } else if (TaskRequest.completed_tasks.containsKey(this.taskName)) {
             body.put("status", true);
@@ -653,10 +701,14 @@ public class TaskRequest {
 
     public ResponseEntity<Map<String, Object>> cancel_task() {
         Map<String, Object> body = new HashMap<>();
-        Task task = TaskRequest.loader_tasks.get(this.taskName);
+        WorkLoadGenerate task = TaskRequest.loader_tasks.get(this.taskName);
         if (task != null) {
+            // Set the flag too, so a worker that survives the interrupt (e.g. it
+            // swallows it in a sleep) still leaves its loop.
+            task.stop_load();
             TaskRequest.taskManager.abortTask(task);
             TaskRequest.loader_tasks.remove(this.taskName);
+            TaskRequest.rememberCompleted(this.taskName, task);
             body.put("status", true);
         } else {
             body.put("error", "Task " + this.taskName + " does not exists");

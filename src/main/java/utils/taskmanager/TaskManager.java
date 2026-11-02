@@ -5,6 +5,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class TaskManager {
     private int workers;
@@ -129,6 +131,46 @@ public class TaskManager {
         return task.result;
     }
 
+    /**
+     * getTaskResult(Task) with the wait bounded to timeoutSeconds. Returns null if the
+     * task is still queued or running when the wait runs out, and leaves it registered
+     * so the caller can ask again.
+     *
+     * A REST handler must use this one: every call holds a server thread for as long as
+     * it waits, so a task that never finishes - its worker stuck in an SDK call, or never
+     * given a thread at all - would hold that thread for the life of the process, and
+     * enough of them stop the server from answering anything.
+     */
+    public Boolean getTaskResult(Task task, long timeoutSeconds) {
+        Future future = this.tasks.get(task.taskName);
+        if (future == null) {
+            System.out.println("Task '" + task.taskName + "' not found in task manager. "
+                    + "It may not have been submitted or was already consumed.");
+            task.result = false;
+            return false;
+        }
+        try {
+            future.get(timeoutSeconds, TimeUnit.SECONDS);
+            this.tasks.remove(task.taskName);
+        } catch (TimeoutException e) {
+            return null;
+        } catch (CancellationException e) {
+            // Skipped by skipTask(): the shared generator was already drained by a
+            // sibling, so there was no work for this one. Not a failure.
+            this.tasks.remove(task.taskName);
+            if (!task.skipped) {
+                task.result = false;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+            this.tasks.remove(task.taskName);
+        }
+        return task.result;
+    }
+
     // Non-blocking progress read: does not touch the Future, so it is safe to
     // call while another thread is blocked inside getTaskResult()'s future.get().
     public long getTaskProgress(Task task) {
@@ -140,10 +182,19 @@ public class TaskManager {
         return future != null && !future.isDone();
     }
 
+    /**
+     * Cancel a task outright, interrupting it if it is running. The interrupt is what
+     * frees a worker stuck in an SDK call, which the stop flag cannot reach. The task is
+     * also dropped from the queue and unregistered, so neither a queued entry nor the
+     * map keeps it around.
+     */
     public void abortTask(Task task) {
-        Future future = this.tasks.get(task.taskName);
+        Future future = this.tasks.remove(task.taskName);
         if (future != null) {
             future.cancel(true);
+            if (future instanceof Runnable) {
+                this.poolExecutor.remove((Runnable) future);
+            }
         } else {
             System.out.println("Task '" + task.taskName + "' not found during abort. "
                     + "It may not have been submitted or was already consumed.");
