@@ -707,6 +707,15 @@ public class TaskRequest {
     public ResponseEntity<Map<String, Object>> cancel_task() {
         Map<String, Object> body = new HashMap<>();
         WorkLoadGenerate task = TaskRequest.loader_tasks.get(this.taskName);
+        if (task == null) {
+            // stop_task moves a task to completed_tasks at once, but a worker stuck
+            // in an SDK call never reads the stop flag and keeps its thread. Cancel
+            // is how a caller that already stopped it frees that thread.
+            WorkLoadGenerate stopped = TaskRequest.completed_tasks.get(this.taskName);
+            if (stopped != null && TaskRequest.taskManager.isTaskRunning(stopped)) {
+                task = stopped;
+            }
+        }
         if (task != null) {
             // Set the flag too, so a worker that survives the interrupt (e.g. it
             // swallows it in a sleep) still leaves its loop.
@@ -714,6 +723,9 @@ public class TaskRequest {
             TaskRequest.taskManager.abortTask(task);
             TaskRequest.loader_tasks.remove(this.taskName);
             TaskRequest.rememberCompleted(this.taskName, task);
+            body.put("status", true);
+        } else if (TaskRequest.completed_tasks.containsKey(this.taskName)) {
+            // Already finished: nothing left to cancel
             body.put("status", true);
         } else {
             body.put("error", "Task " + this.taskName + " does not exists");
